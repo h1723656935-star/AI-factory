@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>爆款工厂AI - 创意方案展示</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #050505;
+      color: #f5f5f5;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+    .orbitron { font-family: 'Orbitron', sans-serif; }
+    
+    /* 背景动画 */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 215, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 215, 0, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-1 { top: -200px; left: -100px; background: #ff00ff; }
+    .glow-2 { bottom: -200px; right: -100px; background: #00ffff; }
+    
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 80px 0;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      background: rgba(255, 215, 0, 0.05);
+      color: #facc15;
+      font-size: 14px;
+      margin-bottom: 28px;
+      letter-spacing: 1px;
+    }
+    .badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00ff88;
+      box-shadow: 0 0 10px #00ff88;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font-size: clamp(40px, 8vw, 80px);
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #facc15 0%, #ff00ff 50%, #00ffff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-subtitle {
+      font-size: clamp(18px, 3vw, 24px);
+      color: #aaa;
+      max-width: 700px;
+      margin-bottom: 40px;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 48px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: #facc15;
+    }
+    .stat-label {
+      color: #888;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    /* Sections */
+    section { padding: 100px 0; }
+    .section-title {
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #fff;
+    }
+    .section-title span { color: #facc15; }
+    .section-desc {
+      color: #999;
+      font-size: 18px;
+      margin-bottom: 48px;
+      max-width: 700px;
+    }
+    
+    /* Cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      padding: 32px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(255, 215, 0, 0.3);
+      box-shadow: 0 20px 60px rgba(255, 215, 0, 0.08);
+    }
+    .card-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+    .card h3 {
+      font-size: 22px;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+    .card p {
+      color: #999;
+      font-size: 15px;
+    }
+    
+    /* Tech Stack */
+    .tech-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .tech-tag {
+      padding: 10px 20px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #ddd;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    /* Workflow */
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .step {
+      padding: 28px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,0,255,0.05));
+      border: 1px solid rgba(255, 215, 0, 0.15);
+      position: relative;
+    }
+    .step-number {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      font-size: 48px;
+      font-weight: 900;
+      color: rgba(255, 215, 0, 0.15);
+    }
+    .step h4 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: #facc15;
+    }
+    .step p { color: #aaa; font-size: 14px; }
+    
+    /* Screenshot placeholder */
+    .showcase-frame {
+      border-radius: 24px;
+      border: 1px solid rgba(255, 215, 0, 0.2);
+      background: rgba(0, 0, 0, 0.5);
+      padding: 24px;
+      margin-top: 40px;
+    }
+    .browser-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .screen-content {
+      min-height: 300px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #111 0%, #1a0a1a 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .screen-logo {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .screen-title {
+      font-size: 28px;
+      color: #facc15;
+      margin-bottom: 12px;
+    }
+    .screen-desc { color: #888; }
+    
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 60px 0;
+      border-top: 1px solid rgba(255, 215, 0, 0.1);
+      color: #666;
+    }
+    
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.3), transparent);
+      margin: 0 auto;
+      max-width: 800px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow glow-1"></div>
+  <div class="bg-glow glow-2"></div>
+  
+  <div class="container">
+    <header class="hero">
+      <div class="badge">TRAE WORK 创意方案</div>
+      <h1 class="orbitron">爆款工厂AI</h1>
+      <p class="hero-subtitle">
+        AI 驱动的爆款短视频创作 SaaS 平台，融合黑金科技风与赛博朋克美学，
+        让每个人都能轻松打造 viral 内容。
+      </p>
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-value">6+</div>
+          <div class="stat-label">AI 创作工具</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">4</div>
+          <div class="stat-label">核心创作模块</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">100%</div>
+          <div class="stat-label">响应式设计</div>
+        </div>
+      </div>
+    </header>
+    
+    <div class="divider"></div>
+    
+    <section id="features">
+      <h2 class="section-title orbitron"><span>核心</span> 功能</h2>
+      <p class="section-desc">
+        从灵感挖掘到成片输出，爆款工厂AI 覆盖短视频创作全流程。
+      </p>
+      <div class="cards">
+        <div class="card">
+          <div class="card-icon" style="background: rgba(255,0,255,0.1);">📹</div>
+          <h3>爆款视频分析</h3>
+          <p>输入任意短视频链接，AI 自动拆解画面节奏、文案结构、情绪曲线与爆款因子，输出可复用的爆款公式。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(0,255,255,0.1);">📝</div>
+          <h3>AI 脚本仿写</h3>
+          <p>选择目标风格（搞笑、知识、情感、带货），AI 一键生成符合平台调性的高质量口播脚本。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(157,0,255,0.1);">🎬</div>
+          <h3>AI 分镜生成</h3>
+          <p>文字脚本自动转可视化分镜，包含景别、运镜、画面描述，支持预览与导出。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(0,255,136,0.1);">✨</div>
+          <h3>AI 提示词生成</h3>
+          <p>支持 Midjourney、Stable Diffusion、DALL·E 等多平台，一键生成专业级 AI 绘图提示词。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(250,204,21,0.1);">📚</div>
+          <h3>创作历史管理</h3>
+          <p>自动保存所有分析、脚本、分镜与提示词，支持分类、搜索、筛选和重新编辑。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(255,102,0,0.1);">💎</div>
+          <h3>会员订阅系统</h3>
+          <p>多档次套餐、权益管理、支付集成，满足不同创作者的使用需求。</p>
+        </div>
+      </div>
+    </section>
+    
+    <div class="divider"></div>
+    
+    <section id="workflow">
+      <h2 class="section-title orbitron"><span>创作</span> 流程</h2>
+      <p class="section-desc">
+        简单四步，从 0 到 1 打造爆款内容。
+      </p>
+      <div class="workflow">
+        <div class="step">
+          <div class="step-number">01</div>
+          <h4>分析爆款</h4>
+          <p>粘贴视频链接，AI 解构爆款要素</p>
+        </div>
+        <div class="step">
+          <div class="step-number">02</div>
+          <h4>仿写脚本</h4>
+          <p>基于分析结果生成同款风格脚本</p>
+        </div>
+        <div class="step">
+          <div class="step-number">03</div>
+          <h4>生成画面</h4>
+          <p>脚本转分镜，AI 绘图提示词辅助视觉</p>
+        </div>
+        <div class="step">
+          <div class="step-number">04</div>
+          <h4>输出成片</h4>
+          <p>保存到历史，随时复用与优化</p>
+        </div>
+      </div>
+      
+      <div class="showcase-frame">
+        <div class="browser-bar">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+        </div>
+        <div class="screen-content">
+          <div class="screen-logo">🚀</div>
+          <div class="screen-title orbitron">爆款工厂AI 控制台</div>
+          <div class="screen-desc">黑金赛博朋克主题 · 深色/浅色模式 · 响应式布局</div>
+        </div>
+      </div>
+    </section>
+    
+    <div class="divider"></div>
+    
+    <section id="tech">
+      <h2 class="section-title orbitron"><span>技术</span> 栈</h2>
+      <p class="section-desc">
+        采用现代化全栈技术方案，兼顾开发效率与生产性能。
+      </p>
+      <div class="tech-grid">
+        <div class="tech-tag">Next.js 14</div>
+        <div class="tech-tag">React 18</div>
+        <div class="tech-tag">TypeScript</div>
+        <div class="tech-tag">TailwindCSS</div>
+        <div class="tech-tag">NextUI</div>
+        <div class="tech-tag">Supabase</div>
+        <div class="tech-tag">PostgreSQL</div>
+        <div class="tech-tag">Zustand</div>
+        <div class="tech-tag">Lucide Icons</div>
+        <div class="tech-tag">Vercel</div>
+      </div>
+    </section>
+    
+    <div class="divider"></div>
+    
+    <section id="highlights">
+      <h2 class="section-title orbitron"><span>设计</span> 亮点</h2>
+      <p class="section-desc">
+        黑金科技风与动漫赛博朋克元素融合，打造沉浸式创作体验。
+      </p>
+      <div class="cards">
+        <div class="card">
+          <div class="card-icon" style="background: rgba(255,215,0,0.1);">🌓</div>
+          <h3>深色 / 浅色模式</h3>
+          <p>基于 next-themes 实现无缝主题切换，自动适配系统偏好。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(0,255,255,0.1);">📱</div>
+          <h3>全端响应式</h3>
+          <p>从手机到桌面端，所有页面均提供一致且优质的浏览体验。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(255,0,255,0.1);">⚡</div>
+          <h3>性能优化</h3>
+          <p>代码分割、图片优化、静态生成，确保高并发场景下稳定流畅。</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background: rgba(0,255,136,0.1);">🔒</div>
+          <h3>企业级安全</h3>
+          <p>Supabase RLS、数据加密、输入验证，全方位保护用户数据。</p>
+        </div>
+      </div>
+    </section>
+    
+    <footer>
+      <p class="orbitron" style="color: #facc15; font-size: 20px; margin-bottom: 8px;">爆款工厂AI</p>
+      <p>© 2026 爆款工厂AI · TRAE Work 创意方案展示</p>
+    </footer>
+  </div>
+</body>
+</html>

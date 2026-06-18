@@ -1,0 +1,563 @@
+openapi: 3.0.3
+info:
+  title: 爆款工厂AI API
+  description: |
+    爆款工厂AI 后端 API 规范。本规范覆盖视频分析、脚本生成、分镜设计、
+    提示词生成、用户认证、订阅管理、历史记录、监控指标等所有 REST 接口。
+    
+    ## 通用约定
+    - 基础路径: `/api`
+    - 数据格式: JSON
+    - 鉴权: `Authorization: Bearer <token>` (Supabase JWT)
+    - 错误格式: `{ "error": { "message": "...", "code": "...", "details": ... } }`
+    - 限流响应头: `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`X-RateLimit-Reset`
+  version: 1.0.0
+  contact:
+    name: 爆款工厂AI 团队
+    email: dev@baokuan.ai
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:3000/api
+    description: 本地开发环境
+  - url: https://baokuan.ai/api
+    description: 生产环境
+
+tags:
+  - name: Auth
+    description: 用户认证
+  - name: Analysis
+    description: 视频分析
+  - name: Script
+    description: 脚本生成
+  - name: Storyboard
+    description: 分镜设计
+  - name: Prompt
+    description: 提示词生成
+  - name: History
+    description: 历史记录
+  - name: Subscription
+    description: 订阅管理
+  - name: User
+    description: 用户管理
+  - name: System
+    description: 系统监控
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: 健康检查
+      description: 用于负载均衡 / k8s 探针
+      security: []
+      responses:
+        '200':
+          description: 服务健康
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: 服务不健康
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /metrics:
+    get:
+      tags: [System]
+      summary: Prometheus 指标
+      security: []
+      responses:
+        '200':
+          description: 指标输出
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /user:
+    get:
+      tags: [User]
+      summary: 获取用户信息
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [User]
+      summary: 更新用户信息
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId: { type: string, format: uuid }
+                updates: { $ref: '#/components/schemas/UserUpdate' }
+      responses:
+        '200': { description: 成功 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /analysis/video:
+    post:
+      tags: [Analysis]
+      summary: 视频爆款分析
+      description: 解析视频链接，调用 LLM 输出标题、情绪钩子、冲突点、反转点
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VideoAnalysisRequest' }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VideoAnalysis' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /script/generate:
+    post:
+      tags: [Script]
+      summary: 生成短视频脚本
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScriptGenerateRequest' }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Script' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /storyboard/generate:
+    post:
+      tags: [Storyboard]
+      summary: 生成分镜
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StoryboardRequest' }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Storyboard' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /prompt/generate:
+    post:
+      tags: [Prompt]
+      summary: 生成 AI 图像提示词
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromptGenerateRequest' }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Prompt' }
+
+  /prompt/templates:
+    get:
+      tags: [Prompt]
+      summary: 获取提示词模板
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PromptTemplate' }
+    post:
+      tags: [Prompt]
+      summary: 创建提示词模板
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromptTemplateCreate' }
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromptTemplate' }
+
+  /history:
+    get:
+      tags: [History]
+      summary: 获取历史记录
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [all, analysis, script, storyboard, prompt, subscription, login, other]
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/HistoryItem' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+
+  /subscription/plans:
+    get:
+      tags: [Subscription]
+      summary: 获取定价方案
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SubscriptionPlan' }
+
+  /subscription/checkout:
+    post:
+      tags: [Subscription]
+      summary: 创建 Stripe Checkout 会话
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId]
+              properties:
+                planId:
+                  type: string
+                  enum: [basic, premium]
+      responses:
+        '200':
+          description: 返回 Stripe 跳转 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+
+  /subscription/status:
+    get:
+      tags: [Subscription]
+      summary: 获取当前订阅状态
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  role: { $ref: '#/components/schemas/UserRole' }
+                  subscription: { $ref: '#/components/schemas/Subscription' }
+
+  /subscription/webhook:
+    post:
+      tags: [Subscription]
+      summary: Stripe Webhook 回调
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: 处理成功 }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: 未授权
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Health:
+      type: object
+      properties:
+        status: { type: string, enum: [healthy, degraded, unhealthy] }
+        uptime: { type: number }
+        version: { type: string }
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              status: { type: string, enum: [pass, warn, fail] }
+              durationMs: { type: number }
+
+    UserRole:
+      type: string
+      enum: [free, basic, premium, enterprise, admin]
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        avatar_url: { type: string, format: uri, nullable: true }
+        role: { $ref: '#/components/schemas/UserRole' }
+        preferences:
+          type: object
+          properties:
+            theme: { type: string, enum: [dark, light] }
+            notifications: { type: boolean }
+            language: { type: string }
+
+    UserUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        preferences: { type: object }
+
+    VideoAnalysisRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+        platform:
+          type: string
+          enum: [douyin, kuaishou, xiaohongshu, bilibili, youtube, unknown]
+
+    VideoAnalysis:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        video_url: { type: string }
+        platform: { type: string }
+        status: { type: string, enum: [pending, processing, complete, error] }
+        title_analysis:
+          type: object
+          properties:
+            mainTitle: { type: string }
+            subTitle: { type: string }
+            keywords: { type: array, items: { type: string } }
+            sentiment: { type: string, enum: [positive, negative, neutral] }
+        emotional_hooks:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              strength: { type: integer }
+              content: { type: string }
+        conflict_points: { type: array, items: { type: object } }
+        reversal_points: { type: array, items: { type: object } }
+        created_at: { type: string, format: date-time }
+
+    ScriptGenerateRequest:
+      type: object
+      required: [topic]
+      properties:
+        analysisId: { type: string, format: uuid }
+        topic: { type: string, minLength: 2, maxLength: 200 }
+        style:
+          type: string
+          enum: [funny, emotional, knowledge, suspense, inspirational, review]
+        tone: { type: string }
+        length:
+          type: string
+          enum: [short, medium, long]
+
+    Script:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        content: { type: string }
+        style: { type: string }
+        length: { type: string }
+        created_at: { type: string, format: date-time }
+
+    StoryboardRequest:
+      type: object
+      properties:
+        scriptId: { type: string, format: uuid }
+        scriptContent: { type: string, minLength: 10 }
+        style:
+          type: string
+          enum: [cinematic, anime, realistic, minimal, vintage, cyberpunk]
+        frameCount: { type: integer, minimum: 3, maximum: 12, default: 6 }
+
+    Storyboard:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              sceneNumber: { type: integer }
+              description: { type: string }
+              visualPrompt: { type: string }
+              duration: { type: string }
+
+    PromptGenerateRequest:
+      type: object
+      required: [subject]
+      properties:
+        platform:
+          type: string
+          enum: [midjourney, stable-diffusion, dalle, leonardo, flux, jimeng, keling]
+        subject: { type: string, minLength: 2, maxLength: 500 }
+        style:
+          type: string
+          enum: [cinematic, anime, realistic, minimal, cyberpunk, vintage]
+        details: { type: string, maxLength: 1000 }
+        negativePrompt: { type: string, maxLength: 500 }
+        aspectRatio: { type: string, enum: ['16:9', '9:16', '1:1', '4:3'] }
+
+    Prompt:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        platform: { type: string }
+        generated_prompt: { type: string }
+        created_at: { type: string, format: date-time }
+
+    PromptTemplate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        platform: { type: string }
+        prompt: { type: string }
+        style: { type: string }
+        aspect_ratio: { type: string }
+        is_public: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    PromptTemplateCreate:
+      type: object
+      required: [name, prompt]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        platform: { type: string, default: midjourney }
+        prompt: { type: string, minLength: 5 }
+        style: { type: string }
+        aspectRatio: { type: string }
+        isPublic: { type: boolean, default: false }
+
+    HistoryItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        action_type: { type: string }
+        title: { type: string }
+        description: { type: string }
+        metadata: { type: object }
+        created_at: { type: string, format: date-time }
+
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+
+    SubscriptionPlan:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        price: { type: integer }
+        original_price: { type: integer, nullable: true }
+        period: { type: string, enum: [month, year, lifetime] }
+        description: { type: string }
+        features: { type: array, items: { type: string } }
+        is_recommended: { type: boolean }
+
+    Subscription:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        plan_id: { type: string }
+        plan_name: { type: string }
+        status: { type: string, enum: [active, pending, cancelled, expired] }
+        start_date: { type: string, format: date-time }
+        end_date: { type: string, format: date-time, nullable: true }
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message: { type: string }
+            code: { type: string }
+            details: {}
