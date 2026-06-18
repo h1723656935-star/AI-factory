@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Wand2, Sparkles, Copy, Check, RefreshCw, Image as ImageIcon } from 'lucide-react'
 import { Layout } from '@/components/Layout'
 import { useAuth } from '@/hooks/useAuth'
+import { apiFetch } from '@/lib/api-client'
+import type { Prompt } from '@/types'
 
 const platforms = [
   { value: 'midjourney', label: 'Midjourney' },
@@ -41,7 +43,8 @@ export default function PromptGeneratorPage() {
   const [negativePrompt, setNegativePrompt] = useState('blurry, low quality, distorted')
   const [aspectRatio, setAspectRatio] = useState('9:16')
   const [loading, setLoading] = useState(false)
-  const [generatedPrompt, setGeneratedPrompt] = useState('')
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<Prompt | null>(null)
   const [copied, setCopied] = useState(false)
   const { user } = useAuth()
 
@@ -50,21 +53,32 @@ export default function PromptGeneratorPage() {
     if (!subject.trim()) return
 
     setLoading(true)
-    setGeneratedPrompt('')
+    setError('')
+    setResult(null)
 
-    await new Promise((resolve) => setTimeout(resolve, 1200))
-
-    const ratioText = aspectRatio.replace(':', ' by ')
-    const prompt = `${subject}, ${style} style, ${details || 'high quality, detailed'}, cinematic lighting, ${ratioText}${
-      platform === 'midjourney' ? ', 8k, ultra detailed --ar ' + aspectRatio : ''
-    }${negativePrompt ? ` --no ${negativePrompt}` : ''}`
-
-    setGeneratedPrompt(prompt)
-    setLoading(false)
+    try {
+      const data = await apiFetch<Prompt>('/api/prompt/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          platform,
+          subject,
+          style,
+          details: details || undefined,
+          negativePrompt: negativePrompt || undefined,
+          aspectRatio,
+        }),
+      })
+      setResult(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '提示词生成失败，请稍后重试')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(generatedPrompt)
+    if (!result?.generated_prompt) return
+    await navigator.clipboard.writeText(result.generated_prompt)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -188,6 +202,12 @@ export default function PromptGeneratorPage() {
                     {loading ? '生成中...' : '生成提示词'}
                   </button>
                 </form>
+
+                {error && (
+                  <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400">
+                    {error}
+                  </div>
+                )}
               </div>
 
               <div className="glass-card-dark p-6 border border-white/10">
@@ -209,7 +229,7 @@ export default function PromptGeneratorPage() {
             <div className="glass-card-dark p-6 border border-white/10 flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-orbitron text-xl font-bold text-white">生成结果</h2>
-                {generatedPrompt && (
+                {result && (
                   <button
                     onClick={handleCopy}
                     className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-gold-500 hover:bg-gold-500/10 transition-all"
@@ -220,10 +240,17 @@ export default function PromptGeneratorPage() {
               </div>
 
               <div className="flex-1 bg-gray-900/50 rounded-xl p-4 overflow-auto min-h-[300px]">
-                {generatedPrompt ? (
-                  <pre className="text-gray-300 whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                    {generatedPrompt}
-                  </pre>
+                {result ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                      <span className="px-2 py-1 rounded bg-white/5">平台: {platforms.find(p => p.value === result.platform)?.label || result.platform}</span>
+                      <span className="px-2 py-1 rounded bg-white/5">风格: {styles.find(s => s.value === result.style)?.label || result.style}</span>
+                      <span className="px-2 py-1 rounded bg-white/5">比例: {result.aspect_ratio}</span>
+                    </div>
+                    <pre className="text-gray-300 whitespace-pre-wrap font-mono text-sm leading-relaxed">
+                      {result.generated_prompt}
+                    </pre>
+                  </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-gray-500">
                     <ImageIcon className="w-12 h-12 mb-3 opacity-30" />

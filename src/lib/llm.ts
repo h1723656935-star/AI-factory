@@ -173,7 +173,7 @@ export async function chatCompletion(
     throw new Error(`LLM API 错误 (${provider}): ${res.status} ${text}`)
   }
 
-  return config.parseResponse(res)
+  return config.parseResponse(res as unknown as Response)
 }
 
 export async function chatCompletionJson<T = unknown>(

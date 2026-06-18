@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Layout } from '@/components/Layout'
 import { useAuth } from '@/hooks/useAuth'
+import { apiFetch } from '@/lib/api-client'
 import type { VideoAnalysis } from '@/types'
 
 const demoResult: Partial<VideoAnalysis> = {
@@ -44,6 +45,7 @@ export default function VideoAnalysisPage() {
   const [url, setUrl] = useState('')
   const [platform, setPlatform] = useState('douyin')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [result, setResult] = useState<Partial<VideoAnalysis> | null>(null)
   const { user } = useAuth()
   const router = useRouter()
@@ -53,11 +55,20 @@ export default function VideoAnalysisPage() {
     if (!url.trim()) return
 
     setLoading(true)
+    setError('')
     setResult(null)
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setResult(demoResult)
-    setLoading(false)
+    try {
+      const data = await apiFetch<VideoAnalysis>('/api/analysis/video', {
+        method: 'POST',
+        body: JSON.stringify({ url, platform }),
+      })
+      setResult(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '分析失败，请稍后重试')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleGenerateScript = () => {
@@ -119,6 +130,12 @@ export default function VideoAnalysisPage() {
               </button>
             </form>
           </div>
+
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400">
+              {error}
+            </div>
+          )}
 
           {result && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

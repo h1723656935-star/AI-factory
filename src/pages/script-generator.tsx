@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { FileText, Sparkles, Copy, Check, RefreshCw, Download } from 'lucide-react'
 import { Layout } from '@/components/Layout'
 import { useAuth } from '@/hooks/useAuth'
+import { apiFetch } from '@/lib/api-client'
+import type { Script } from '@/types'
 
 const styles = [
   { value: 'funny', label: '搞笑', emoji: '😂' },
@@ -39,7 +41,8 @@ export default function ScriptGeneratorPage() {
   const [tone, setTone] = useState('轻松')
   const [length, setLength] = useState('medium')
   const [loading, setLoading] = useState(false)
-  const [script, setScript] = useState('')
+  const [error, setError] = useState('')
+  const [script, setScript] = useState<Script | null>(null)
   const [copied, setCopied] = useState(false)
   const { user } = useAuth()
 
@@ -48,55 +51,32 @@ export default function ScriptGeneratorPage() {
     if (!topic.trim()) return
 
     setLoading(true)
-    setScript('')
+    setError('')
+    setScript(null)
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setScript(`标题：${topic} - 爆款脚本
-
-【开场】(0-3秒)
-${style === 'funny' ? '大家好！今天给大家带来一个超级搞笑的视频...' :
-  style === 'emotional' ? '你有没有想过，一个简单的决定可能改变你的一生？' :
-  style === 'knowledge' ? '今天给大家分享一个超级实用的技巧，学会了你就是大神！' :
-  style === 'suspense' ? '深夜，一个神秘的电话打破了宁静...' :
-  style === 'inspirational' ? '每个人都有梦想，但只有少数人能实现它...' :
-  '今天我们来测评一下这款热门产品，看看它到底值不值得买！'}
-
-【正文】(${length === 'short' ? '3-15' : length === 'medium' ? '3-30' : '3-60'}秒)
-${style === 'funny' ? '首先，我想问问大家，你们有没有遇到过这种情况...' :
-  style === 'emotional' ? '记得那是一个下雨天，我独自走在街头...' :
-  style === 'knowledge' ? '第一步：准备好所需材料。第二步：按照以下步骤操作...' :
-  style === 'suspense' ? '随着调查的深入，真相越来越扑朔迷离...' :
-  style === 'inspirational' ? '成功的路上并不拥挤，因为坚持的人不多...' :
-  '这款产品的外观设计非常精致，手感也很不错...'}
-
-【高潮】(${length === 'short' ? '15-25' : length === 'medium' ? '30-45' : '60-120'}秒)
-${style === 'funny' ? '最搞笑的来了！你们猜发生了什么？哈哈哈...' :
-  style === 'emotional' ? '就在那一刻，我终于明白了什么是真正的爱...' :
-  style === 'knowledge' ? '重点来了！记住这个关键步骤，这是整个技巧的核心...' :
-  style === 'suspense' ? '真相大白！原来凶手竟然是...' :
-  style === 'inspirational' ? '只要你不放弃，奇迹就会发生！' :
-  '但是！当我使用一段时间后，发现了一个严重的问题...'}
-
-【结尾】(${length === 'short' ? '25-30' : length === 'medium' ? '45-60' : '120-180'}秒)
-${style === 'funny' ? '哈哈哈，今天的视频就到这里，别忘了点赞关注哦！' :
-  style === 'emotional' ? '希望这个故事能给你带来一些温暖...' :
-  style === 'knowledge' ? '学会了吗？记得点赞收藏，下次还会分享更多干货！' :
-  style === 'suspense' ? '想知道后续发展？记得关注我，下集更精彩！' :
-  style === 'inspirational' ? '相信自己，你比想象中更强大！' :
-  '总体来说，这款产品值得购买，但有一些小瑕疵需要注意...'}
-
-风格：${styles.find(s => s.value === style)?.label} | 语气：${tone} | 时长：${lengths.find(l => l.value === length)?.label}`)
-    setLoading(false)
+    try {
+      const data = await apiFetch<Script>('/api/script/generate', {
+        method: 'POST',
+        body: JSON.stringify({ topic, style, tone, length }),
+      })
+      setScript(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '脚本生成失败，请稍后重试')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(script)
+    if (!script?.content) return
+    await navigator.clipboard.writeText(script.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleDownload = () => {
-    const blob = new Blob([script], { type: 'text/plain;charset=utf-8' })
+    if (!script?.content) return
+    const blob = new Blob([script.content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -198,6 +178,12 @@ ${style === 'funny' ? '哈哈哈，今天的视频就到这里，别忘了点赞
                   {loading ? '生成中...' : '生成脚本'}
                 </button>
               </form>
+
+              {error && (
+                <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400">
+                  {error}
+                </div>
+              )}
             </div>
 
             <div className="glass-card-dark p-6 border border-white/10 flex flex-col">
@@ -225,9 +211,19 @@ ${style === 'funny' ? '哈哈哈，今天的视频就到这里，别忘了点赞
 
               <div className="flex-1 bg-gray-900/50 rounded-xl p-4 overflow-auto min-h-[300px]">
                 {script ? (
-                  <pre className="text-gray-300 whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                    {script}
-                  </pre>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                      <span className="px-2 py-1 rounded bg-white/5">风格: {styles.find(s => s.value === script.style)?.label || script.style}</span>
+                      <span className="px-2 py-1 rounded bg-white/5">语气: {script.tone || tone}</span>
+                      <span className="px-2 py-1 rounded bg-white/5">时长: {lengths.find(l => l.value === script.length)?.label || script.length}</span>
+                      {script.estimated_duration && (
+                        <span className="px-2 py-1 rounded bg-white/5">预计: {script.estimated_duration}</span>
+                      )}
+                    </div>
+                    <pre className="text-gray-300 whitespace-pre-wrap font-mono text-sm leading-relaxed">
+                      {script.content}
+                    </pre>
+                  </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-gray-500">
                     <FileText className="w-12 h-12 mb-3 opacity-30" />

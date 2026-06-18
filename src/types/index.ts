@@ -92,6 +92,7 @@ export interface Prompt {
   details?: string
   negative_prompt?: string
   generated_prompt: string
+  aspect_ratio?: string
   created_at: string
 }
 

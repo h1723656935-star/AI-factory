@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Image as ImageIcon, Sparkles, RefreshCw, Clock, Wand2, Copy, Check } from 'lucide-react'
 import { Layout } from '@/components/Layout'
 import { useAuth } from '@/hooks/useAuth'
-import type { StoryboardFrame } from '@/types'
+import { apiFetch } from '@/lib/api-client'
+import type { Storyboard, StoryboardFrame } from '@/types'
 
 const styles = [
   { value: 'cinematic', label: '电影感' },
@@ -56,6 +57,7 @@ export default function StoryboardPage() {
   const [style, setStyle] = useState('cinematic')
   const [frameCount, setFrameCount] = useState(6)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [frames, setFrames] = useState<StoryboardFrame[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const { user } = useAuth()
@@ -65,11 +67,20 @@ export default function StoryboardPage() {
     if (!script.trim()) return
 
     setLoading(true)
+    setError('')
     setFrames([])
 
-    await new Promise((resolve) => setTimeout(resolve, 1800))
-    setFrames(demoFrames.slice(0, frameCount))
-    setLoading(false)
+    try {
+      const data = await apiFetch<Storyboard>('/api/storyboard/generate', {
+        method: 'POST',
+        body: JSON.stringify({ scriptContent: script, style, frameCount }),
+      })
+      setFrames(data.frames || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '分镜生成失败，请稍后重试')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCopy = async (id: string, text: string) => {
@@ -149,6 +160,12 @@ export default function StoryboardPage() {
                     {loading ? '生成中...' : '生成分镜'}
                   </button>
                 </form>
+
+                {error && (
+                  <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400">
+                    {error}
+                  </div>
+                )}
               </div>
             </div>
 
