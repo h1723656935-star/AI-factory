@@ -4,6 +4,8 @@
  * 统一返回字符串或 JSON 对象
  */
 
+import { fetch as undiciFetch, ProxyAgent } from 'undici'
+
 export type LlmProvider = 'openai' | 'anthropic' | 'zhipu' | 'dashscope' | 'deepseek'
 
 export interface LlmMessage {
@@ -153,7 +155,11 @@ export async function chatCompletion(
     throw new Error(`未配置 ${provider} 的 API Key`)
   }
 
-  const res = await fetch(`${config.baseUrl}/chat/completions`, {
+  const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+
+  const res = await undiciFetch(`${config.baseUrl}/chat/completions`, {
+    dispatcher: dispatcher as never,
     method: 'POST',
     headers: {
       ...config.headers,
