@@ -189,6 +189,7 @@ export default function PromptStudio() {
   const [mood, setMood] = useState('')
   const [quality, setQuality] = useState('')
   const [enhanceLevel, setEnhanceLevel] = useState('pro')
+  const [useTemplate, setUseTemplate] = useState(true)
   const [prompt, setPrompt] = useState<Prompt | null>(null)
   const [editedTags, setEditedTags] = useState<string[]>([])
   const [customTag, setCustomTag] = useState('')
@@ -270,6 +271,7 @@ export default function PromptStudio() {
           negativePrompt: negativePrompt || undefined, aspectRatio, model, language,
           camera: camera || undefined, lighting: lighting || undefined,
           mood: mood || undefined, quality: quality || undefined, enhanceLevel,
+          useTemplate,
         }),
       })
       setPrompt(data); setEditedTags(data.tags || [])
@@ -577,6 +579,26 @@ export default function PromptStudio() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* 模板驱动模式切换 */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-gold-500" />
+                  <div>
+                    <span className="text-sm text-white font-medium">模板驱动模式</span>
+                    <p className="text-xs text-gray-500 mt-0.5">使用预设模板 + AI 润色，质量更稳定</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useTemplate}
+                    onChange={(e) => setUseTemplate(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:bg-gold-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                </label>
               </div>
 
               {/* 模型 & 语言 */}

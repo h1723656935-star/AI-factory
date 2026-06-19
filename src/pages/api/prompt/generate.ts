@@ -12,6 +12,10 @@ import {
   matchPerson, matchPhotography, matchLighting, matchQuality, matchColor,
   pickFromLibrary,
 } from '@/lib/prompt-kb'
+import {
+  getRandomTemplate, getTemplatesByPlatformAndStyle,
+  replacePlaceholders, recordTemplateUse, loadTemplates,
+} from '@/lib/prompt-templates'
 
 const supabase = createAdminClient()
 
@@ -314,7 +318,86 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const {
     platform, subject, style, details, negativePrompt, aspectRatio,
     model, language, camera, lighting, mood, quality, enhanceLevel,
+    useTemplate, templateId,
   } = validateBody(req, promptGenerateSchema)
+
+  // 确保模板库已加载
+  loadTemplates()
+
+  // ==================== 优先级 1：模板驱动模式 ====================
+  let templateUsed: string | null = null
+
+  if (useTemplate !== false) {
+    // 获取模板：指定 ID > 随机匹配
+    const tpl = templateId
+      ? (getTemplatesByPlatformAndStyle(platform, style).find((t) => t.id === templateId) || null)
+      : getRandomTemplate(platform, style)
+
+    if (tpl) {
+      templateUsed = tpl.id
+      recordTemplateUse(tpl.id)
+
+      // 变量替换
+      const filledTemplate = replacePlaceholders(tpl.template, {
+        subject, scene: details, lighting, camera, quality,
+        style: style, mood, details,
+      }, style)
+
+      let generatedPrompt: string
+      let negativePromptFull: string | undefined
+
+      if (isLlmConfigured()) {
+        // AI 润色 — 基于模板填充结果进行优化
+        const polishPrompt = language === 'en'
+          ? `Polish and enhance this prompt for ${platform}. Keep the original structure and keywords, but improve fluency and add subtle details where appropriate. Output ONLY the final prompt: ${filledTemplate}`
+          : `请对以下 ${platform} 提示词进行润色优化。保持原有结构和关键词，提升流畅度并在适当位置增加微妙细节。只输出最终提示词：${filledTemplate}`
+
+        generatedPrompt = await chatCompletion(
+          [
+            { role: 'system', content: language === 'en'
+              ? 'You are a prompt polishing expert. Polish the given prompt. Output ONLY the polished prompt, no explanations.'
+              : '你是提示词润色专家。润色给定提示词，只输出润色后的提示词。'
+            },
+            { role: 'user', content: polishPrompt },
+          ],
+          { temperature: 0.3, maxTokens: 2048, model: model || undefined, language: language || undefined }
+        )
+        generatedPrompt = generatedPrompt.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim()
+      } else {
+        // 无 AI 时直接使用模板填充结果
+        generatedPrompt = filledTemplate
+      }
+
+      if (platform === 'stable-diffusion' && negativePrompt) {
+        negativePromptFull = `(worst quality, low quality:1.4), (blurry:1.2), ${negativePrompt}`
+      }
+
+      const platformParams = getPlatformParams(platform, aspectRatio)
+      const qualityScore = scorePrompt(generatedPrompt, platform, style)
+      const tags = extractTags(generatedPrompt, platform, camera, lighting, mood, quality, enhanceLevel)
+
+      return successResponse(res, {
+        id: crypto.randomUUID(),
+        platform, subject, style,
+        details: details || null,
+        negative_prompt: negativePrompt || null,
+        generated_prompt: generatedPrompt,
+        negative_prompt_full: negativePromptFull || null,
+        aspect_ratio: aspectRatio || tpl.aspectRatio || '9:16',
+        camera: camera || null, lighting: lighting || null, mood: mood || null, quality: quality || null,
+        enhance_level: enhanceLevel,
+        model: model || null, language: language || 'cn',
+        platform_params: platformParams,
+        quality_score: qualityScore,
+        tags,
+        template_id: templateUsed,
+        template_name: tpl.name,
+        mode: 'template',
+      })
+    }
+  }
+
+  // ==================== 优先级 2：AI 自由生成模式（管道式引擎） ====================
 
   const pipelinePrompt = buildPipelinePrompt(
     platform, subject, style, language, enhanceLevel,

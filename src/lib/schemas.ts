@@ -60,6 +60,35 @@ export const promptGenerateSchema = z.object({
   mood: z.enum(['dreamy', 'mysterious', 'oppressive', 'warm', 'lonely', 'epic']).optional(),
   quality: z.enum(['standard', 'high', 'master']).optional(),
   enhanceLevel: z.enum(['basic', 'pro', 'master']).default('pro'),
+  useTemplate: z.boolean().default(true),
+  templateId: z.string().optional(),
+})
+
+// 模板管理 Schema
+export const promptTemplateCreateSchema = z.object({
+  name: z.string().min(1, '模板名称不能为空').max(100),
+  platform: z.enum([
+    'midjourney', 'flux', 'stable-diffusion', 'jimeng', 'keling',
+    'dalle', 'leonardo', 'comfyui', 'fooocus',
+  ]),
+  style: z.string().min(1),
+  category: z.string().default('general'),
+  template: z.string().min(5, '模板内容至少5个字符'),
+  description: z.string().max(500).optional(),
+  aspectRatio: z.string().optional(),
+})
+
+export const promptTemplateUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  platform: z.enum([
+    'midjourney', 'flux', 'stable-diffusion', 'jimeng', 'keling',
+    'dalle', 'leonardo', 'comfyui', 'fooocus',
+  ]).optional(),
+  style: z.string().optional(),
+  category: z.string().optional(),
+  template: z.string().min(5).optional(),
+  description: z.string().max(500).optional(),
+  aspectRatio: z.string().optional(),
 })
 
 // 一键优化请求

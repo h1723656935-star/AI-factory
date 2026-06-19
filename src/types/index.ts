@@ -296,3 +296,28 @@ export interface OptimizeResult {
   }
   diff?: string[]
 }
+
+// ==================== 模板驱动模式 ====================
+
+/** Prompt 模板 */
+export interface PromptTemplate {
+  id: string
+  name: string
+  platform: 'midjourney' | 'flux' | 'stable-diffusion' | 'jimeng' | 'keling' | 'dalle' | 'leonardo' | 'comfyui' | 'fooocus'
+  style: string
+  category: string
+  template: string
+  description?: string
+  aspectRatio?: string
+  useCount?: number
+  created_at: string
+  updated_at?: string
+}
+
+/** 模板分类 */
+export interface TemplateCategory {
+  id: string
+  name: string
+  label: string
+  count: number
+}
