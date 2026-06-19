@@ -11,7 +11,7 @@ import {
   LayoutDashboard, ListChecks, Radar, Save, Edit3, MoreHorizontal,
   TrendingUp as TrendingUpIcon, ArrowRight, Home, Monitor, Tablet,
 } from 'lucide-react'
-import Layout from '@/components/Layout'
+import { Layout } from '@/components/Layout'
 import { apiFetch } from '@/lib/api-client'
 import type {
   Prompt, PromptQualityScore, PromptPlatformParams, ImageAnalysis,
@@ -176,6 +176,7 @@ export default function PromptStudio() {
   const [copied, setCopied] = useState(false)
   const [model, setModel] = useState('glm-4-flash')
   const [language, setLanguage] = useState<'cn' | 'en'>('cn')
+  const [generationProgress, setGenerationProgress] = useState<string>('')
 
   // ===== 生成器状态 =====
   const [platform, setPlatform] = useState('midjourney')
@@ -262,7 +263,17 @@ export default function PromptStudio() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!subject.trim()) return
-    setLoading(true); setError(''); setPrompt(null)
+    setLoading(true); setError(''); setPrompt(null); setGenerationProgress('')
+    
+    const progressSteps = ['主体识别...', '场景扩写...', '镜头构建...', '光影构建...', '材质构建...', '色彩构建...', '风格构建...', '平台适配...', 'AI润色...']
+    let stepIndex = 0
+    const progressInterval = setInterval(() => {
+      if (stepIndex < progressSteps.length) {
+        setGenerationProgress(progressSteps[stepIndex])
+        stepIndex++
+      }
+    }, 400)
+    
     try {
       const data = await apiFetch<Prompt>('/api/prompt/generate', {
         method: 'POST',
@@ -277,7 +288,11 @@ export default function PromptStudio() {
       setPrompt(data); setEditedTags(data.tags || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成失败')
-    } finally { setLoading(false) }
+    } finally { 
+      clearInterval(progressInterval)
+      setGenerationProgress('')
+      setLoading(false) 
+    }
   }
 
   const handleOptimize = async () => {
@@ -334,12 +349,31 @@ export default function PromptStudio() {
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    
+    const maxSize = 50 * 1024 * 1024
+    if (file.size > maxSize) {
+      setError('视频文件过大，请上传 50MB 以内的视频')
+      return
+    }
+    
     setVideoFile(file)
     setLoading(true); setError('')
+    
     try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          const result = ev.target?.result as string
+          const commaIndex = result.indexOf(',')
+          resolve(commaIndex > -1 ? result.slice(commaIndex + 1) : result)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      
       const data = await apiFetch<VideoAnalysisResult>('/api/prompt/analyze-video', {
         method: 'POST',
-        body: JSON.stringify({ model, language }),
+        body: JSON.stringify({ videoBase64: base64, model, language }),
       })
       setVideoAnalysis(data)
     } catch (err) {
@@ -649,6 +683,9 @@ export default function PromptStudio() {
                   <RefreshCw className="w-20 h-20 text-gold-500 animate-spin absolute inset-0 m-auto" />
                 </div>
                 <p className="text-gray-400 mt-6 text-sm">管道式引擎工作中...</p>
+                {generationProgress && (
+                  <p className="text-gold-400 text-sm mt-2 font-medium animate-pulse">{generationProgress}</p>
+                )}
                 <p className="text-gray-600 text-xs mt-1">主体识别 → 场景扩写 → 镜头构建 → 光影构建 → 材质构建 → 色彩构建 → 风格构建 → 平台适配</p>
               </div>
             )}

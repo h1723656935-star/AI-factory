@@ -1,82 +1,440 @@
 // @ts-nocheck
 // ============================================================
-// Prompt 知识库 — 专业级 AI 绘图提示词知识体系
-// 用于 prompt 管道式生成引擎的智能增强
+// Prompt 知识库 — 主体驱动型 AI 绘图提示词引擎
+// 核心原则：主体决定内容，风格负责增强
 // ============================================================
 
-// ---------- 人物库 ----------
-export const personLibrary: Record<string, {
-  face: string[]
-  skin: string[]
-  hair: string[]
-  body: string[]
-  clothing: string[]
-  expression: string[]
-  pose: string[]
-}> = {
-  '亚洲女性': {
-    face: ['delicate facial features', 'gentle eyes', 'soft smile', 'flawless complexion', 'natural makeup', 'arched eyebrows'],
-    skin: ['realistic skin texture', 'smooth skin', 'subsurface scattering', 'pore-level detail', 'healthy glow', 'natural skin tone'],
-    hair: ['silky black hair', 'flowing strands', 'glossy hair', 'natural hair movement', 'detailed hair strands'],
-    body: ['elegant posture', 'slender figure', 'graceful proportions', 'feminine silhouette'],
-    clothing: ['traditional Chinese dress', 'flowing silk fabric', 'intricate embroidery', 'delicate accessories'],
-    expression: ['gentle gaze', 'subtle smile', 'serene expression', 'warm eyes', 'thoughtful look'],
-    pose: ['graceful standing pose', 'elegant hand gesture', 'slight head tilt', 'natural posture'],
+// ---------- 主体类型定义 ----------
+export type SubjectType = 'person' | 'clothing' | 'product' | 'animal' | 'architecture' | 'scene' | 'vehicle' | 'food'
+
+export interface SubjectCategory {
+  type: SubjectType
+  label: string
+  labelCn: string
+  keywords: string[]
+  coreAttributes: string[]
+  descriptionPatterns: string[]
+}
+
+// ---------- 主体类型识别 ----------
+export const subjectCategories: SubjectCategory[] = [
+  {
+    type: 'person',
+    label: 'Person',
+    labelCn: '人物',
+    keywords: ['人', '人物', '男', '女', '老人', '儿童', '美女', '帅哥', '模特', '演员', '角色', '人物', 'person', 'man', 'woman', 'girl', 'boy', 'people', 'human', 'character', 'model'],
+    coreAttributes: ['外观描述', '表情神态', '动作姿态', '服装配饰'],
+    descriptionPatterns: [
+      'a {age} {ethnicity} {gender} with {feature}',
+      'the subject is {description}',
+      '{subject} in {pose} pose',
+    ],
   },
-  '亚洲男性': {
-    face: ['sharp jawline', 'defined features', 'expressive eyes', 'clean shaven', 'chiseled face'],
-    skin: ['realistic skin texture', 'pore-level detail', 'natural complexion', 'subtle skin imperfections'],
-    hair: ['styled dark hair', 'natural hair texture', 'clean hairstyle'],
-    body: ['athletic build', 'broad shoulders', 'well-proportioned', 'masculine silhouette'],
-    clothing: ['modern streetwear', 'tailored suit', 'traditional Chinese robe', 'martial arts uniform'],
-    expression: ['confident gaze', 'determined expression', 'calm demeanor', 'intense stare'],
-    pose: ['powerful stance', 'dynamic action pose', 'relaxed posture', 'martial arts stance'],
+  {
+    type: 'clothing',
+    label: 'Clothing',
+    labelCn: '服装',
+    keywords: ['服装', '衣服', '裙子', '裤子', '外套', '衬衫', '鞋子', '帽子', '包', '配饰', 'dress', 'shirt', 'pants', 'jacket', 'coat', 'shoes', 'hat', 'bag', 'clothing', 'fashion', 'outfit', 'garment'],
+    coreAttributes: ['款式版型', '材质面料', '颜色图案', '细节做工'],
+    descriptionPatterns: [
+      '{material} {clothing_type} with {pattern}',
+      'a {style} {garment} featuring {detail}',
+      'elegant {clothing} made of {fabric}',
+    ],
   },
-  '西方女性': {
-    face: ['striking features', 'defined cheekbones', 'captivating eyes', 'full lips', 'flawless makeup'],
-    skin: ['porcelain skin', 'natural skin texture', 'freckles', 'sun-kissed glow', 'dewy complexion'],
-    hair: ['blonde wavy hair', 'flowing golden locks', 'voluminous curls', 'braided hairstyle'],
-    body: ['athletic physique', 'toned figure', 'model proportions'],
-    clothing: ['elegant evening gown', 'high fashion outfit', 'casual chic', 'designer clothing'],
-    expression: ['captivating smile', 'mysterious gaze', 'confident look', 'playful expression'],
-    pose: ['fashion model pose', 'natural walking pose', 'dramatic pose'],
+  {
+    type: 'product',
+    label: 'Product',
+    labelCn: '产品',
+    keywords: ['产品', '商品', '手机', '电脑', '相机', '耳机', '手表', '首饰', '化妆品', 'product', 'phone', 'laptop', 'camera', 'watch', 'jewelry', 'cosmetic', 'electronics', 'gadget', 'item'],
+    coreAttributes: ['外观造型', '功能特点', '材质质感', '使用场景'],
+    descriptionPatterns: [
+      '{brand} {product_type} with {feature}',
+      'a sleek {product} displayed on {background}',
+      'professional {product} photography',
+    ],
   },
-  '西方男性': {
-    face: ['strong jawline', 'piercing eyes', 'well-groomed beard', 'chiseled features', 'handsome face'],
-    skin: ['weathered skin texture', 'rugged complexion', 'natural skin details'],
-    hair: ['textured brown hair', 'short styled hair', 'windswept look'],
-    body: ['muscular build', 'tall stature', 'V-shaped torso', 'athletic physique'],
-    clothing: ['tailored three-piece suit', 'casual leather jacket', 'military uniform', 'fantasy armor'],
-    expression: ['intense stare', 'brooding look', 'heroic expression', 'stoic demeanor'],
-    pose: ['heroic stance', 'action-ready pose', 'contemplative pose', 'power pose'],
+  {
+    type: 'animal',
+    label: 'Animal',
+    labelCn: '动物',
+    keywords: ['动物', '猫', '狗', '鸟', '鱼', '马', '狮子', '老虎', '兔子', '动物', 'animal', 'cat', 'dog', 'bird', 'fish', 'horse', 'lion', 'tiger', 'rabbit', 'pet', 'wildlife'],
+    coreAttributes: ['物种特征', '皮毛质感', '神态动作', '生态环境'],
+    descriptionPatterns: [
+      'a {species} {color} with {feature}',
+      '{animal} in its natural {environment}',
+      'beautiful {pet_type} with {detail}',
+    ],
   },
-  '儿童': {
-    face: ['innocent eyes', 'chubby cheeks', 'bright smile', 'button nose', 'youthful glow'],
-    skin: ['soft baby skin', 'smooth complexion', 'natural blush', 'peach-like skin'],
-    hair: ['soft fine hair', 'messy playful hair', 'cute pigtails'],
-    body: ['small stature', 'adorable proportions', 'playful posture'],
-    clothing: ['colorful casual wear', 'traditional festive outfit', 'cute costume'],
-    expression: ['joyful laughter', 'curious gaze', 'innocent smile', 'playful expression'],
-    pose: ['playful running', 'sitting cross-legged', 'curious reaching', 'happy jumping'],
+  {
+    type: 'architecture',
+    label: 'Architecture',
+    labelCn: '建筑',
+    keywords: ['建筑', '房子', '大楼', '桥梁', '教堂', '宫殿', '塔', '建筑', 'architecture', 'building', 'house', 'bridge', 'church', 'palace', 'tower', 'structure', 'construction'],
+    coreAttributes: ['建筑风格', '结构特点', '材质质感', '光影氛围'],
+    descriptionPatterns: [
+      '{style} {building_type} with {feature}',
+      'a magnificent {structure} in {setting}',
+      '{material} {architecture} featuring {detail}',
+    ],
   },
-  '老人': {
-    face: ['wisdom lines', 'kind eyes', 'weathered face', 'character wrinkles', 'gentle smile'],
-    skin: ['aged skin texture', 'natural wrinkles', 'age spots', 'leathery texture'],
-    hair: ['silver gray hair', 'white beard', 'receding hairline'],
-    body: ['slightly hunched', 'frail frame', 'weathered hands'],
-    clothing: ['traditional robes', 'simple comfortable clothing', 'scholarly attire'],
-    expression: ['wise smile', 'knowing gaze', 'peaceful expression', 'benevolent look'],
-    pose: ['seated meditation', 'staff in hand', 'scholarly reading', 'walking with cane'],
+  {
+    type: 'scene',
+    label: 'Scene',
+    labelCn: '场景',
+    keywords: ['场景', '风景', '风景', '城市', '乡村', '海滩', '森林', '夜景', 'scene', 'landscape', 'view', 'cityscape', 'countryside', 'beach', 'forest', 'night view', 'setting'],
+    coreAttributes: ['场景类型', '空间层次', '天气光效', '氛围情绪'],
+    descriptionPatterns: [
+      '{time} {location} with {atmosphere}',
+      'a breathtaking {scene} featuring {element}',
+      '{weather} {setting} with {lighting}',
+    ],
   },
-  '奇幻角色': {
-    face: ['ethereal features', 'glowing eyes', 'elven ears', 'mystical markings', 'otherworldly beauty'],
-    skin: ['luminescent skin', 'scale texture', 'magical rune tattoos', 'crystalline surface'],
-    hair: ['flowing magical hair', 'elemental hair', 'cosmic hair strands'],
-    body: ['heroic proportions', 'winged figure', 'elemental form'],
-    clothing: ['enchanted armor', 'mage robes', 'divine garments', 'dragon scale armor'],
-    expression: ['ancient wisdom', 'fierce determination', 'mystical gaze'],
-    pose: ['spellcasting stance', 'heroic battle pose', 'floating meditation'],
+  {
+    type: 'vehicle',
+    label: 'Vehicle',
+    labelCn: '载具',
+    keywords: ['汽车', '摩托车', '飞机', '火车', '船', '自行车', '载具', 'vehicle', 'car', 'motorcycle', 'airplane', 'train', 'ship', 'bicycle', 'transport'],
+    coreAttributes: ['车型外观', '品牌风格', '动态静态', '使用场景'],
+    descriptionPatterns: [
+      'a {brand} {vehicle_type} {color}',
+      'vintage {car} in {setting}',
+      '{vehicle} showcasing {feature}',
+    ],
   },
+  {
+    type: 'food',
+    label: 'Food',
+    labelCn: '食物',
+    keywords: ['食物', '美食', '蛋糕', '咖啡', '甜点', '料理', '食物', 'food', 'cake', 'coffee', 'dessert', 'cuisine', 'meal', 'dish', 'cooking'],
+    coreAttributes: ['食物种类', '外观色泽', '质感层次', '呈现方式'],
+    descriptionPatterns: [
+      'a delicious {food_type} with {topping}',
+      'gourmet {dish} plated on {plate}',
+      'appetizing {food} with {garnish}',
+    ],
+  },
+]
+
+// 识别主体类型
+export function detectSubjectType(subject: string): SubjectType {
+  const lower = subject.toLowerCase()
+  
+  for (const category of subjectCategories) {
+    for (const keyword of category.keywords) {
+      if (lower.includes(keyword.toLowerCase())) {
+        return category.type
+      }
+    }
+  }
+  
+  // 默认返回人物类型
+  return 'person'
+}
+
+// 获取主体类型标签
+export function getSubjectTypeLabel(type: SubjectType): { label: string; labelCn: string } {
+  const category = subjectCategories.find(c => c.type === type)
+  return {
+    label: category?.label || 'Unknown',
+    labelCn: category?.labelCn || '未知',
+  }
+}
+
+// ---------- 主体描述模板库 ----------
+interface SubjectTemplate {
+  type: SubjectType
+  baseDescription: (subject: string, details?: string) => string[]
+  appearanceModifiers: string[]
+  actionModifiers: string[]
+  materialModifiers: string[]
+}
+
+const subjectTemplates: Record<SubjectType, SubjectTemplate> = {
+  person: {
+    type: 'person',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('女性') || subject.includes('女') || subject.includes('girl') || subject.includes('woman')) {
+        descs.push('young Asian woman', 'beautiful female figure', 'elegant lady', 'charming woman')
+      } else if (subject.includes('男性') || subject.includes('男') || subject.includes('boy') || subject.includes('man')) {
+        descs.push('handsome Asian man', 'masculine figure', 'confident male', 'attractive man')
+      } else if (subject.includes('儿童') || subject.includes('孩')) {
+        descs.push('innocent child', 'cute little girl', 'cheerful boy', 'adorable kid')
+      } else if (subject.includes('老人')) {
+        descs.push('elderly person', 'wise older man', 'graceful senior', 'distinguished elder')
+      } else {
+        descs.push('person', 'individual', 'figure', 'character')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'with delicate facial features', 'with sharp jawline', 'with gentle eyes',
+      'wearing elegant attire', 'dressed in casual clothes', 'in traditional outfit',
+      'with natural makeup', 'with confident expression', 'with serene smile',
+    ],
+    actionModifiers: [
+      'standing gracefully', 'sitting thoughtfully', 'walking confidently',
+      'looking into the distance', 'turning head slightly', 'posing for the camera',
+      'engaged in activity', 'in contemplative moment', 'with relaxed posture',
+    ],
+    materialModifiers: [],
+  },
+  
+  clothing: {
+    type: 'clothing',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('裙子') || subject.includes('dress')) {
+        descs.push('elegant dress', 'flowing gown', 'stylish dress', 'beautiful skirt')
+      } else if (subject.includes('衬衫') || subject.includes('shirt')) {
+        descs.push('classic shirt', 'crisp blouse', 'stylish top', 'fitted shirt')
+      } else if (subject.includes('外套') || subject.includes('jacket')) {
+        descs.push('fashionable jacket', 'stylish coat', 'elegant outerwear', 'trendy jacket')
+      } else if (subject.includes('鞋') || subject.includes('shoe')) {
+        descs.push('designer shoes', 'elegant heels', 'stylish sneakers', 'classic footwear')
+      } else {
+        descs.push('fashion item', 'stylish garment', 'elegant clothing piece', 'designer wear')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'made of fine silk', 'crafted from premium leather', 'featuring intricate embroidery',
+      'with delicate lace details', 'in rich fabric', 'with elegant draping',
+      'adorned with gems', 'featuring unique design', 'with flowing silhouette',
+    ],
+    actionModifiers: [],
+    materialModifiers: [
+      'silk fabric', 'cotton blend', 'wool material', 'linen texture',
+      'leather finish', 'velvet touch', 'lace overlay', 'satin sheen',
+    ],
+  },
+  
+  product: {
+    type: 'product',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('手机') || subject.includes('phone')) {
+        descs.push('modern smartphone', 'sleek mobile device', 'latest flagship phone')
+      } else if (subject.includes('电脑') || subject.includes('laptop')) {
+        descs.push('ultrabook laptop', 'powerful computer', 'slim notebook')
+      } else if (subject.includes('手表') || subject.includes('watch')) {
+        descs.push('luxury timepiece', 'elegant watch', 'designer timepiece')
+      } else if (subject.includes('首饰') || subject.includes('jewelry')) {
+        descs.push('diamond necklace', 'gold bracelet', 'pearl earrings')
+      } else {
+        descs.push('premium product', 'high-end item', 'professional product')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'with sleek design', 'featuring premium finish', 'in matte black',
+      'with chrome accents', 'in minimalist style', 'with glossy surface',
+      'with LED indicators', 'with precision engineering', 'in modern aesthetics',
+    ],
+    actionModifiers: [],
+    materialModifiers: [
+      'aluminum body', 'glass screen', 'carbon fiber', 'titanium frame',
+      'ceramic finish', 'brushed metal', 'premium plastic', 'steel accents',
+    ],
+  },
+  
+  animal: {
+    type: 'animal',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('猫') || subject.includes('cat')) {
+        descs.push('fluffy cat', 'elegant feline', 'playful kitten', 'majestic cat')
+      } else if (subject.includes('狗') || subject.includes('dog')) {
+        descs.push('loyal dog', 'playful puppy', 'noble canine', 'friendly dog')
+      } else if (subject.includes('鸟') || subject.includes('bird')) {
+        descs.push('colorful bird', 'graceful avian', 'exotic bird', 'singing bird')
+      } else if (subject.includes('马') || subject.includes('horse')) {
+        descs.push('powerful horse', 'elegant stallion', 'noble steed', 'majestic horse')
+      } else {
+        descs.push('beautiful animal', 'wild creature', 'magnificent beast', 'wildlife')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'with shiny coat', 'with striking patterns', 'with expressive eyes',
+      'in natural habitat', 'with distinctive markings', 'with smooth fur',
+      'with powerful build', 'with graceful posture', 'with wild spirit',
+    ],
+    actionModifiers: [
+      'running freely', 'resting peacefully', 'hunting gracefully',
+      'playing joyfully', 'grooming itself', 'looking alert',
+      'exploring surroundings', 'interacting with nature', 'showcasing natural beauty',
+    ],
+    materialModifiers: [],
+  },
+  
+  architecture: {
+    type: 'architecture',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('房子') || subject.includes('house')) {
+        descs.push('cozy house', 'modern residence', 'traditional dwelling', 'luxury home')
+      } else if (subject.includes('大楼') || subject.includes('building')) {
+        descs.push('skyscraper', 'modern building', 'glass tower', 'commercial structure')
+      } else if (subject.includes('教堂') || subject.includes('church')) {
+        descs.push('ancient cathedral', 'gothic church', 'historic chapel', 'magnificent church')
+      } else if (subject.includes('桥') || subject.includes('bridge')) {
+        descs.push('elegant bridge', 'ancient stone bridge', 'modern suspension bridge', 'architectural span')
+      } else {
+        descs.push('impressive structure', 'architectural masterpiece', 'stunning building', 'remarkable construction')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'with intricate details', 'featuring classic design', 'in modern style',
+      'with ornate decorations', 'with clean lines', 'in traditional style',
+      'with impressive scale', 'with artistic elements', 'with historical significance',
+    ],
+    actionModifiers: [],
+    materialModifiers: [
+      'brick and mortar', 'concrete and glass', 'stone and marble',
+      'wooden structure', 'steel framework', 'modern materials',
+      'traditional construction', 'eco-friendly materials', 'premium finishes',
+    ],
+  },
+  
+  scene: {
+    type: 'scene',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('城市') || subject.includes('city')) {
+        descs.push('bustling cityscape', 'urban panorama', 'metropolitan view', 'city skyline')
+      } else if (subject.includes('海') || subject.includes('beach')) {
+        descs.push('tropical beach', 'sandy coastline', 'coastal paradise', 'seaside vista')
+      } else if (subject.includes('森林') || subject.includes('forest')) {
+        descs.push('lush forest', 'ancient woods', 'verdant woodland', 'magical forest')
+      } else if (subject.includes('山') || subject.includes('mountain')) {
+        descs.push('majestic mountain', 'alpine peak', 'towering summit', 'dramatic peaks')
+      } else if (subject.includes('夜景') || subject.includes('night')) {
+        descs.push('city at night', 'nighttime view', 'illuminated skyline', 'starry night scene')
+      } else {
+        descs.push('beautiful landscape', 'scenic view', 'stunning vista', 'picturesque setting')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'with golden sunlight', 'bathed in soft light', 'under dramatic clouds',
+      'with misty atmosphere', 'in magical lighting', 'with vibrant colors',
+      'with peaceful ambiance', 'in ethereal glow', 'with natural beauty',
+    ],
+    actionModifiers: [],
+    materialModifiers: [],
+  },
+  
+  vehicle: {
+    type: 'vehicle',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('汽车') || subject.includes('car')) {
+        descs.push('sports car', 'luxury sedan', 'classic automobile', 'modern vehicle')
+      } else if (subject.includes('摩托') || subject.includes('motorcycle')) {
+        descs.push('powerful motorcycle', 'sleek bike', 'racing motorcycle', 'cruiser bike')
+      } else if (subject.includes('飞机') || subject.includes('plane')) {
+        descs.push('commercial airplane', 'private jet', 'vintage aircraft', 'modern aircraft')
+      } else if (subject.includes('火车') || subject.includes('train')) {
+        descs.push('bullet train', 'steam locomotive', 'modern railway', 'vintage train')
+      } else {
+        descs.push('vehicle', 'transport', 'machine', 'transportation')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'with aerodynamic design', 'in vibrant color', 'with chrome details',
+      'featuring LED lighting', 'in pristine condition', 'with sporty accents',
+      'with luxury interior', 'with powerful stance', 'with sleek lines',
+    ],
+    actionModifiers: [
+      'speeding on highway', 'parked elegantly', 'racing through city',
+      'cruising along coast', 'showcasing at event', 'driving through landscape',
+    ],
+    materialModifiers: [
+      'carbon fiber body', 'aluminum alloy', 'chrome finish',
+      'matte paint', 'glossy coat', 'premium leather interior',
+    ],
+  },
+  
+  food: {
+    type: 'food',
+    baseDescription: (subject: string, details?: string) => {
+      const descs: string[] = []
+      if (subject.includes('蛋糕') || subject.includes('cake')) {
+        descs.push('layered cake', 'artisan cake', 'gourmet dessert', 'beautiful pastry')
+      } else if (subject.includes('咖啡') || subject.includes('coffee')) {
+        descs.push('artisan coffee', 'latte art', 'espresso', 'specialty brew')
+      } else if (subject.includes('甜点') || subject.includes('dessert')) {
+        descs.push('gourmet dessert', 'elegant sweets', 'fine pastry', 'delicate treats')
+      } else if (subject.includes('料理') || subject.includes('dish')) {
+        descs.push('gourmet dish', 'culinary creation', 'plated meal', 'chef specialty')
+      } else {
+        descs.push('delicious food', 'gourmet cuisine', 'culinary delight', 'appetizing dish')
+      }
+      if (details) descs.push(details)
+      return descs
+    },
+    appearanceModifiers: [
+      'beautifully plated', 'with artistic presentation', 'garnished with care',
+      'in soft lighting', 'with steam rising', 'with vibrant colors',
+      'on elegant tableware', 'with natural styling', 'in appetizing arrangement',
+    ],
+    actionModifiers: [],
+    materialModifiers: [
+      'fresh ingredients', 'premium quality', 'organic produce',
+      'artisan ingredients', 'locally sourced', 'hand-crafted',
+    ],
+  },
+}
+
+// ---------- 主体内容生成器 ----------
+export function generateSubjectContent(
+  subjectType: SubjectType,
+  subject: string,
+  details?: string,
+  count: number = 3
+): string[] {
+  const template = subjectTemplates[subjectType]
+  if (!template) return [subject]
+  
+  const contents: string[] = []
+  
+  // 添加基础描述
+  const baseDescs = template.baseDescription(subject, details)
+  contents.push(...baseDescs)
+  
+  // 添加外观修饰
+  const appearanceCount = Math.min(Math.floor(count / 2), template.appearanceModifiers.length)
+  if (appearanceCount > 0) {
+    const shuffledAppearance = shuffleArray(template.appearanceModifiers).slice(0, appearanceCount)
+    contents.push(...shuffledAppearance)
+  }
+  
+  // 添加动作修饰
+  const actionCount = Math.min(Math.floor(count / 3), template.actionModifiers.length)
+  if (actionCount > 0) {
+    const shuffledAction = shuffleArray(template.actionModifiers).slice(0, actionCount)
+    contents.push(...shuffledAction)
+  }
+  
+  // 添加材质修饰
+  const materialCount = Math.min(Math.floor(count / 3), template.materialModifiers.length)
+  if (materialCount > 0) {
+    const shuffledMaterial = shuffleArray(template.materialModifiers).slice(0, materialCount)
+    contents.push(...shuffledMaterial)
+  }
+  
+  return contents
 }
 
 // ---------- 摄影库 ----------
@@ -121,8 +479,7 @@ export const materialLibrary: Record<string, string[]> = {
   'fabric': ['silk fabric sheen', 'cotton texture', 'wool fibers', 'velvet softness', 'linen weave', 'leather grain', 'transparent chiffon', 'brocade pattern'],
   'metal': ['polished metal reflection', 'brushed aluminum', 'tarnished copper', 'gold luster', 'chrome finish', 'rusted iron texture', 'forged steel'],
   'wood': ['wood grain texture', 'oak grain', 'polished mahogany', 'weathered wood', 'bamboo texture', 'cedar wood pattern'],
-  'stone': ['marble veining', 'granite speckle', 'sandstone texture', 'weathered rock', 'jade translucency', 'obsidian glass',
-  'crystal clear'],
+  'stone': ['marble veining', 'granite speckle', 'sandstone texture', 'weathered rock', 'jade translucency', 'obsidian glass', 'crystal clear'],
   'glass': ['crystal glass reflection', 'frosted glass', 'stained glass', 'glass refraction', 'transparent glass', 'broken glass shards'],
   'water': ['water surface reflection', 'underwater caustics', 'rippling water', 'crystal clear water', 'ocean waves', 'water droplets'],
   'nature': ['moss texture', 'bark grain', 'petal softness', 'leaf veins', 'grass blades', 'sand grains', 'snow crystalline'],
@@ -132,16 +489,16 @@ export const materialLibrary: Record<string, string[]> = {
 
 // ---------- 色彩库 ----------
 export const colorLibrary: Record<string, { palette: string[]; description: string }> = {
-  'warm': { palette: ['warm golden tones', 'amber', 'orange', 'crimson', 'terracotta', 'peach'], description: '温暖色调，金色和琥珀色为主' },
-  'cool': { palette: ['cool blue tones', 'teal', 'cyan', 'silver', 'ice blue', 'lavender'], description: '冷色调，蓝色和青色为主' },
-  'monochrome': { palette: ['black and white', 'grayscale', 'high contrast', 'silver tones', 'charcoal'], description: '黑白单色，高对比度' },
-  'vintage': { palette: ['sepia tone', 'faded colors', 'warm yellow', 'muted brown', 'vintage wash', 'film color'], description: '复古色调，怀旧感' },
-  'cyberpunk': { palette: ['neon pink', 'cyan blue', 'purple', 'magenta', 'electric blue', 'synthetic green'], description: '赛博朋克霓虹色' },
-  'pastel': { palette: ['soft pink', 'baby blue', 'mint green', 'lavender', 'peach', 'cream'], description: '柔和粉彩，清新温柔' },
-  'earthy': { palette: ['olive green', 'terracotta', 'sand', 'clay', 'forest green', 'umber'], description: '大地色系，自然质感' },
-  'jewel': { palette: ['emerald green', 'sapphire blue', 'ruby red', 'amethyst purple', 'topaz yellow'], description: '宝石色调，浓烈奢华' },
-  'noir': { palette: ['deep blacks', 'dark grays', 'silver highlights', 'moody blues', 'shadow tones'], description: '暗黑色调，电影感' },
-  'ethereal': { palette: ['pearlescent white', 'iridescent', 'holographic', 'opal', 'soft glow', 'angelic light'], description: '空灵梦幻，珠光质感' },
+  'warm': { palette: ['warm golden tones', 'amber', 'orange', 'crimson', 'terracotta', 'peach'], description: '温暖色调' },
+  'cool': { palette: ['cool blue tones', 'teal', 'cyan', 'silver', 'ice blue', 'lavender'], description: '冷色调' },
+  'monochrome': { palette: ['black and white', 'grayscale', 'high contrast', 'silver tones', 'charcoal'], description: '黑白单色' },
+  'vintage': { palette: ['sepia tone', 'faded colors', 'warm yellow', 'muted brown', 'vintage wash', 'film color'], description: '复古色调' },
+  'cyberpunk': { palette: ['neon pink', 'cyan blue', 'purple', 'magenta', 'electric blue', 'synthetic green'], description: '赛博朋克' },
+  'pastel': { palette: ['soft pink', 'baby blue', 'mint green', 'lavender', 'peach', 'cream'], description: '柔和粉彩' },
+  'earthy': { palette: ['olive green', 'terracotta', 'sand', 'clay', 'forest green', 'umber'], description: '大地色系' },
+  'jewel': { palette: ['emerald green', 'sapphire blue', 'ruby red', 'amethyst purple', 'topaz yellow'], description: '宝石色调' },
+  'noir': { palette: ['deep blacks', 'dark grays', 'silver highlights', 'moody blues', 'shadow tones'], description: '暗黑色调' },
+  'ethereal': { palette: ['pearlescent white', 'iridescent', 'holographic', 'opal', 'soft glow', 'angelic light'], description: '空灵梦幻' },
 }
 
 // ---------- 场景库 ----------
@@ -152,7 +509,7 @@ export const sceneLibrary: Record<string, string[]> = {
   'nature': ['lush forest', 'mountain range', 'flowing river', 'wildflower meadow', 'ancient trees', 'natural wonder'],
   'studio': ['professional photo studio', 'clean backdrop', 'controlled lighting', 'minimal setup', 'product photography setup'],
   'fantasy': ['enchanted forest', 'floating islands', 'magical realm', 'crystal cave', 'ancient ruins', 'mystical portal'],
-  'cyberpunk': ['neon-lit alley', 'futuristic cityscape', 'holographic billboards', 'rain-slicked streets', 'cyberpunk megacity', 'dystopian future'],
+  'cyberpunk': ['neon-lit alley', 'futuristic cityscape', 'hologaphic billboards', 'rain-slicked streets', 'cyberpunk megacity', 'dystopian future'],
   'historical': ['ancient Chinese palace', 'traditional courtyard', 'historical architecture', 'period-accurate details', 'cultural heritage'],
   'beach': ['sandy beach', 'ocean waves', 'tropical paradise', 'palm trees', 'sunset beach', 'crystal clear water'],
   'winter': ['snow-covered landscape', 'frost atmosphere', 'winter wonderland', 'ice crystals', 'northern lights', 'cozy winter cabin'],
@@ -160,58 +517,37 @@ export const sceneLibrary: Record<string, string[]> = {
 
 // ---------- 辅助函数 ----------
 
-/** 从知识库中随机选择 N 个元素 */
+export function shuffleArray<T>(array: T[]): T[] {
+  const result = [...array]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
 export function pickFromLibrary(lib: string[], count: number): string[] {
-  const shuffled = [...lib].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, count)
+  if (lib.length <= count) return [...lib]
+  return shuffleArray(lib).slice(0, count)
 }
 
-/** 根据关键词智能匹配人物库 */
+// ---------- 兼容旧API ----------
 export function matchPerson(subject: string): string[] {
-  const keywords: string[] = []
-  const lower = subject.toLowerCase()
-
-  for (const [key, data] of Object.entries(personLibrary)) {
-    if (lower.includes(key.toLowerCase()) || lower.includes(key.slice(0, 2))) {
-      keywords.push(...data.face.slice(0, 3))
-      keywords.push(...data.skin.slice(0, 2))
-      keywords.push(...data.hair.slice(0, 2))
-      keywords.push(...data.expression.slice(0, 2))
-      keywords.push(...data.pose.slice(0, 2))
-      break
-    }
-  }
-
-  // 通用匹配
-  if (keywords.length === 0) {
-    if (lower.includes('woman') || lower.includes('girl') || lower.includes('女性') || lower.includes('女') || lower.includes('美女')) {
-      const data = personLibrary['亚洲女性']
-      keywords.push(...data.face.slice(0, 3), ...data.skin.slice(0, 2), ...data.hair.slice(0, 2))
-    } else if (lower.includes('man') || lower.includes('boy') || lower.includes('男性') || lower.includes('男')) {
-      const data = personLibrary['亚洲男性']
-      keywords.push(...data.face.slice(0, 3), ...data.skin.slice(0, 2), ...data.hair.slice(0, 2))
-    }
-  }
-
-  return keywords
+  return generateSubjectContent('person', subject)
 }
 
-/** 匹配摄影关键词 */
 export function matchPhotography(camera: string): string[] {
   return photographyLibrary[camera] || photographyLibrary['portrait']
 }
 
-/** 匹配光影关键词 */
 export function matchLighting(lighting: string): string[] {
   return lightingLibrary[lighting] || lightingLibrary['cinematic']
 }
 
-/** 匹配画质关键词 */
 export function matchQuality(quality: string): string[] {
   return qualityLibrary[quality] || qualityLibrary['high']
 }
 
-/** 匹配色彩方案 */
 export function matchColor(mood?: string): string[] {
   const moodToColor: Record<string, string> = {
     'dreamy': 'ethereal', 'mysterious': 'noir', 'oppressive': 'noir',

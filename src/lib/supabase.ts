@@ -29,8 +29,18 @@ export function createAdminClient(): SupabaseClient | null {
   return createSupabaseClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey || 'service-role-key')
 }
 
+// 服务端客户端 - 使用 service role key，绕过 RLS
+export function createServiceClient(): SupabaseClient | null {
+  if (!supabaseUrl) return null
+  if (!supabaseServiceKey) {
+    // Fallback to admin client if service key not configured
+    return createAdminClient()
+  }
+  return createSupabaseClient(supabaseUrl, supabaseServiceKey)
+}
+
 export function isSupabaseConfigured(): boolean {
-  return Boolean(supabaseUrl && (supabaseServiceKey || supabaseAnonKey))
+  return Boolean(supabaseUrl && supabaseAnonKey)
 }
 
 export const supabase = createClient()

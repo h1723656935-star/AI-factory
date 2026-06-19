@@ -7,10 +7,14 @@ import { applyRateLimit } from '@/lib/rate-limit'
 import { promptGenerateSchema, promptOptimizeSchema } from '@/lib/schemas'
 import type { PromptQualityScore, PromptPlatformParams } from '@/types'
 import {
-  personLibrary, photographyLibrary, lightingLibrary, qualityLibrary,
+  photographyLibrary, lightingLibrary, qualityLibrary,
   materialLibrary, colorLibrary, sceneLibrary,
-  matchPerson, matchPhotography, matchLighting, matchQuality, matchColor,
+  matchPhotography, matchLighting, matchQuality, matchColor,
   pickFromLibrary,
+  detectSubjectType,
+  generateSubjectContent,
+  getSubjectTypeLabel,
+  shuffleArray,
 } from '@/lib/prompt-kb'
 import {
   getRandomTemplate, getTemplatesByPlatformAndStyle,
@@ -75,72 +79,92 @@ export function scorePrompt(prompt: string, platform: string, style: string): Pr
   const words = prompt.split(/[\s,]+/).filter(Boolean).length
   const charCount = prompt.length
 
+  const checkTerms = (terms: string[], bonus: number = 1): number => {
+    let count = 0
+    for (const term of terms) {
+      if (lower.includes(term)) count += bonus
+    }
+    return count
+  }
+
   // 1. 细节丰富度 — 检测材质、光影、肤质、环境
   const materialTerms = ['texture', 'material', 'silk', 'leather', 'metal', 'wood', 'glass', 'fabric', 'skin texture', 'cloth', 'cotton', 'velvet', 'marble', 'gold', 'silver', 'crystal', 'jade', 'porcelain', 'bronze']
   const lightingTerms = ['lighting', 'light', 'shadow', 'illumination', 'glow', 'ray', 'sunlight', 'moonlight', 'neon', 'rim light', 'backlight', 'volumetric', 'god rays', 'golden hour', 'soft light', 'harsh light', 'ambient', 'reflection', 'bounce']
-  const skinTerms = ['skin', 'subsurface', 'pore', 'complexion', 'texture', 'flawless', 'smooth skin', 'realistic skin', 'skin detail']
+  const skinTerms = ['skin', 'subsurface', 'pore', 'complexion', 'flawless', 'smooth skin', 'realistic skin', 'skin detail']
   const envTerms = ['background', 'environment', 'scene', 'landscape', 'setting', 'surrounding', 'atmosphere', 'room', 'forest', 'city', 'mountain', 'ocean', 'garden', 'studio']
 
-  const materialCount = materialTerms.filter(t => lower.includes(t)).length
-  const lightingCount = lightingTerms.filter(t => lower.includes(t)).length
-  const skinCount = skinTerms.filter(t => lower.includes(t)).length
-  const envCount = envTerms.filter(t => lower.includes(t)).length
+  const materialCount = checkTerms(materialTerms)
+  const lightingCount = checkTerms(lightingTerms)
+  const skinCount = checkTerms(skinTerms)
+  const envCount = checkTerms(envTerms)
 
   let detailScore = 0
-  detailScore += Math.min(40, materialCount * 8)  // 材质
-  detailScore += Math.min(30, lightingCount * 6)   // 光影
-  detailScore += Math.min(15, skinCount * 5)       // 肤质
-  detailScore += Math.min(15, envCount * 4)        // 环境
-  if (words > 60) detailScore = Math.min(100, detailScore + 15)
+  detailScore += Math.min(35, materialCount * 7)
+  detailScore += Math.min(30, lightingCount * 5)
+  detailScore += Math.min(20, skinCount * 6)
+  detailScore += Math.min(15, envCount * 4)
+  if (words > 60) detailScore = Math.min(100, detailScore + 10)
   if (words > 100) detailScore = Math.min(100, detailScore + 10)
+  if (words > 150) detailScore = Math.min(100, detailScore + 5)
 
   // 2. 构图完整度 — 检测镜头、焦段、景别、景深
-  const lensTerms = ['lens', 'mm', 'f/', 'aperture', 'focal', '50mm', '85mm', '24mm', '35mm', '100mm', '70-200mm', 'telephoto', 'wide angle', 'macro']
-  const shotTerms = ['shot', 'close-up', 'portrait', 'full body', 'wide', 'aerial', 'bird', 'pov', 'angle', 'perspective', 'view', 'composition', 'framing']
-  const dofTerms = ['depth of field', 'bokeh', 'shallow', 'focus', 'blur', 'background blur', 'sharp focus', 'dof']
+  const lensTerms = ['lens', 'mm', 'f/', 'aperture', 'focal', '50mm', '85mm', '24mm', '35mm', '100mm', '70-200mm', 'telephoto', 'wide angle', 'macro', 'prime', 'zoom']
+  const shotTerms = ['shot', 'close-up', 'portrait', 'full body', 'wide', 'aerial', 'bird', 'pov', 'angle', 'perspective', 'view', 'composition', 'framing', 'medium shot', 'long shot', 'extreme close-up']
+  const dofTerms = ['depth of field', 'bokeh', 'shallow', 'focus', 'blur', 'background blur', 'sharp focus', 'dof', 'depth']
 
-  const lensCount = lensTerms.filter(t => lower.includes(t)).length
-  const shotCount = shotTerms.filter(t => lower.includes(t)).length
-  const dofCount = dofTerms.filter(t => lower.includes(t)).length
+  const lensCount = checkTerms(lensTerms)
+  const shotCount = checkTerms(shotTerms)
+  const dofCount = checkTerms(dofTerms)
 
   let compScore = 0
-  compScore += Math.min(35, lensCount * 10)  // 镜头/焦段
-  compScore += Math.min(40, shotCount * 8)    // 景别/构图
-  compScore += Math.min(25, dofCount * 8)     // 景深
-  if (shotCount >= 3 && lensCount >= 1) compScore = Math.min(100, compScore + 15)
+  compScore += Math.min(35, lensCount * 8)
+  compScore += Math.min(40, shotCount * 6)
+  compScore += Math.min(25, dofCount * 7)
+  if (shotCount >= 2 && lensCount >= 1) compScore = Math.min(100, compScore + 10)
+  if (shotCount >= 3 && lensCount >= 2) compScore = Math.min(100, compScore + 10)
 
   // 3. 风格准确度 — 检测风格关键词匹配
-  let styleScore = 40
+  let styleScore = 35
   if (styleKeywords[style]) {
     const styleTerms = styleKeywords[style].split(', ').map(s => s.trim().toLowerCase())
     const matched = styleTerms.filter(t => lower.includes(t))
-    const matchRate = matched.length / Math.min(8, styleTerms.length)
-    styleScore = Math.min(100, Math.round(matchRate * 100))
-    if (matched.length >= 4) styleScore = Math.min(100, styleScore + 15)
-    if (matched.length >= 6) styleScore = Math.min(100, styleScore + 10)
+    const matchRate = matched.length / Math.min(styleTerms.length, 8)
+    styleScore = Math.min(100, Math.round(matchRate * 90) + 10)
+    if (matched.length >= 4) styleScore = Math.min(100, styleScore + 10)
+    if (matched.length >= 6) styleScore = Math.min(100, styleScore + 5)
   }
 
   // 4. 平台适配度
-  let platformScore = 50
+  let platformScore = 40
   if (platform === 'midjourney') {
     if (lower.includes('--ar')) platformScore += 20
-    if (lower.includes('--stylize')) platformScore += 10
-    if (lower.includes('--v')) platformScore += 10
+    if (lower.includes('--stylize') || lower.includes('--s ')) platformScore += 15
+    if (lower.includes('--v')) platformScore += 15
     if (words > 60) platformScore += 10
+    if (words > 100) platformScore += 10
   } else if (platform === 'stable-diffusion') {
     if (lower.includes('negative prompt')) platformScore += 25
-    if (lower.includes('steps')) platformScore += 10
+    if (lower.includes('steps:')) platformScore += 10
     if (lower.includes('cfg')) platformScore += 10
+    if (lower.includes('sampler')) platformScore += 10
     if (lower.includes('masterpiece')) platformScore += 5
+    if (lower.includes('seed:')) platformScore += 5
   } else if (platform === 'flux') {
     if (words > 80) platformScore += 25
-    if (charCount > 300) platformScore += 15
-    if (lower.includes('lighting')) platformScore += 10
+    if (charCount > 300) platformScore += 20
+    if (charCount > 500) platformScore += 10
+    if (lower.includes('lighting')) platformScore += 5
+    if (lower.includes('composition')) platformScore += 5
   } else if (platform === 'jimeng') {
-    // 即梦用中文
     const hasChinese = /[\u4e00-\u9fa5]/.test(prompt)
     if (hasChinese) platformScore += 30
-    if (charCount > 50) platformScore += 20
+    if (charCount > 50) platformScore += 15
+    if (charCount > 100) platformScore += 15
+  } else if (platform === 'dalle') {
+    if (words > 50) platformScore += 25
+    if (words > 100) platformScore += 20
+    if (lower.includes('photograph')) platformScore += 10
+    if (lower.includes('illustration')) platformScore += 10
   }
   platformScore = Math.min(100, platformScore)
 
@@ -148,27 +172,32 @@ export function scorePrompt(prompt: string, platform: string, style: string): Pr
 
   const suggestions: string[] = []
   if (materialCount < 2) suggestions.push('缺少材质描述（丝绸、金属、木质、玻璃等），建议补充')
-  if (lightingCount < 3) suggestions.push('光影系统不完整，建议添加光源类型、方向、强度描述')
+  if (lightingCount < 2) suggestions.push('光影系统不完整，建议添加光源类型、方向、强度描述')
   if (skinCount < 1 && (lower.includes('portrait') || lower.includes('face') || lower.includes('skin'))) suggestions.push('人物肤质细节缺失，建议添加 subsurface scattering、pore-level detail')
   if (lensCount < 1) suggestions.push('缺少镜头参数（焦段/光圈），建议添加如 85mm f/1.4')
   if (shotCount < 2) suggestions.push('缺少构图描述，建议添加景别（close-up/wide/portrait）和视角')
   if (dofCount < 1) suggestions.push('缺少景深描述，建议添加 depth of field、bokeh')
   if (styleScore < 60) suggestions.push('风格关键词匹配度低，建议强化风格特征词')
   if (platformScore < 70) suggestions.push('平台适配度不足，建议添加平台专属参数')
-  if (words < 50) suggestions.push('提示词偏短（' + words + '词），建议扩展到 80 词以上')
-  if (total >= 85) suggestions.push('提示词质量优秀，可直接复制到 ' + platform + ' 使用！')
+  if (words < 50) suggestions.push(`提示词偏短（${words}词），建议扩展到 80 词以上`)
+  if (words > 200) suggestions.push('提示词过长，可能影响生成效果，建议精简到 150 词以内')
+  if (total >= 85) suggestions.push(`提示词质量优秀，可直接复制到 ${platform} 使用！`)
+  if (total >= 95) suggestions.push('完美！这是一个专业级别的提示词！')
 
-  // 缺失项检测
+  const hasAction = /(standing|sitting|walking|running|posing|holding|looking|gazing|smiling|dancing|flying|floating|action|pose|gesture|movement|reaching|touching|holding)/i.test(prompt)
+  const hasColor = /(color|tone|warm|cool|palette|hue|golden|blue|red|purple|green|amber|teal|pink|orange|cyan|magenta)/i.test(prompt)
+  const hasQuality = /(masterpiece|best quality|ultra detailed|8k|4k|high resolution|photorealistic|hd|uhd|hyper-realistic|highly detailed)/i.test(prompt)
+
   const missingItems: Array<{ label: string; description: string; missing: boolean; suggestion?: string }> = [
-    { label: '动作描述', description: '主体在做什么', missing: !/(standing|sitting|walking|running|posing|holding|looking|gazing|smiling|dancing|flying|floating|action|pose|gesture|movement)/i.test(prompt), suggestion: '添加主体动作：standing, walking, looking, holding...' },
+    { label: '动作描述', description: '主体在做什么', missing: !hasAction, suggestion: '添加主体动作：standing, walking, looking, holding...' },
     { label: '背景环境', description: '场景/背景/环境', missing: envCount === 0, suggestion: '添加环境描述：background, environment, scene, forest...' },
     { label: '镜头焦段', description: '镜头参数/焦段', missing: lensCount === 0, suggestion: '添加镜头参数：85mm, 50mm, f/1.4, wide angle...' },
     { label: '构图视角', description: '景别/视角/构图', missing: shotCount < 2, suggestion: '添加构图描述：close-up, portrait, wide shot, composition...' },
     { label: '景深描述', description: '景深/虚化/对焦', missing: dofCount === 0, suggestion: '添加景深：depth of field, bokeh, shallow focus...' },
     { label: '材质描述', description: '材质/纹理/质感', missing: materialCount < 2, suggestion: '添加材质：silk, metal, leather, crystal, wood...' },
-    { label: '光影系统', description: '光源/方向/强度', missing: lightingCount < 3, suggestion: '添加光影：lighting, volumetric, rim light, soft light...' },
-    { label: '色彩方案', description: '色调/色彩/氛围', missing: !/(color|tone|warm|cool|palette|hue|golden|blue|red|purple|green|amber|teal|pink|orange|cyan)/i.test(prompt), suggestion: '添加色彩：warm tones, golden, teal and orange, pastel...' },
-    { label: '画质标签', description: '画质/分辨率/质量词', missing: !/(masterpiece|best quality|ultra detailed|8k|4k|high resolution|photorealistic|hd|uhd)/i.test(prompt), suggestion: '添加画质词：masterpiece, best quality, ultra detailed, 8k...' },
+    { label: '光影系统', description: '光源/方向/强度', missing: lightingCount < 2, suggestion: '添加光影：lighting, volumetric, rim light, soft light...' },
+    { label: '色彩方案', description: '色调/色彩/氛围', missing: !hasColor, suggestion: '添加色彩：warm tones, golden, teal and orange, pastel...' },
+    { label: '画质标签', description: '画质/分辨率/质量词', missing: !hasQuality, suggestion: '添加画质词：masterpiece, best quality, ultra detailed, 8k...' },
     { label: '风格关键词', description: '风格特征描述', missing: styleScore < 60, suggestion: '强化风格关键词：' + (styleKeywords[style]?.split(', ').slice(0, 3).join(', ') || '') },
   ]
 
@@ -205,72 +234,135 @@ function extractTags(prompt: string, platform: string, camera?: string, lighting
   return tags
 }
 
-// ==================== 管道式 Prompt 构建 ====================
+// ==================== 主体驱动 Prompt 构建 ====================
 
-function buildPipelinePrompt(
-  platform: string, subject: string, style: string, language: string,
-  enhanceLevel: string, details?: string, negativePrompt?: string,
-  aspectRatio?: string, camera?: string, lighting?: string, mood?: string, quality?: string
+interface GenerationContext {
+  subjectType: SubjectType
+  subjectLabel: string
+  subjectContent: string[]
+}
+
+function buildSubjectDrivenPrompt(
+  platform: string,
+  subject: string,
+  style: string,
+  language: string,
+  enhanceLevel: string,
+  ctx: GenerationContext,
+  details?: string,
+  aspectRatio?: string,
+  camera?: string,
+  lighting?: string,
+  mood?: string,
+  quality?: string
 ): string {
   const isEnglish = language === 'en'
-  const styleGuide = styleKeywords[style] || styleKeywords.cinematic
+  const { subjectType, subjectLabel, subjectContent } = ctx
 
-  // 从知识库预加载增强关键词
-  const personKw = matchPerson(subject)
-  const photoKw = camera ? matchPhotography(camera) : matchPhotography('portrait')
-  const lightKw = lighting ? matchLighting(lighting) : matchLighting('cinematic')
-  const qualityKw = matchQuality(quality || 'high')
-  const colorKw = matchColor(mood)
-  const materialKw = pickFromLibrary(materialLibrary['fabric'], 3)
-  const sceneKw = pickFromLibrary(sceneLibrary['outdoor'], 3)
+  // 风格增强配置（仅负责光影、镜头、色彩、氛围）
+  const lightingEnhancement = lighting
+    ? lightingLibrary[lighting] || lightingLibrary['cinematic']
+    : lightingLibrary['cinematic']
+
+  const cameraEnhancement = camera
+    ? photographyLibrary[camera] || photographyLibrary['portrait']
+    : photographyLibrary['cinematic']
+
+  const colorEnhancement = mood
+    ? matchColor(mood)
+    : matchColor('warm')
 
   // 增强等级配置
   const levelConfig = {
-    basic: { minWords: 30, minChars: 150, sections: ['subject', 'scene', 'style', 'quality'] },
-    pro: { minWords: 80, minChars: 400, sections: ['subject', 'scene', 'camera', 'lighting', 'material', 'color', 'style', 'quality'] },
-    master: { minWords: 150, minChars: 700, sections: ['subject', 'scene', 'camera', 'lighting', 'material', 'color', 'style', 'quality', 'composition', 'atmosphere'] },
+    basic: { subjectCount: 4, styleCount: 2, minWords: 30 },
+    pro: { subjectCount: 6, styleCount: 3, minWords: 80 },
+    master: { subjectCount: 8, styleCount: 4, minWords: 150 },
   }
   const config = levelConfig[enhanceLevel] || levelConfig.pro
 
+  // 构建主体内容（70%）
+  const subjectPhrases = subjectContent.slice(0, config.subjectCount)
+  const subjectSection = subjectPhrases.join(', ')
+
+  // 构建风格增强（20%）
+  const stylePhrases = [
+    ...lightingEnhancement.slice(0, config.styleCount),
+    ...cameraEnhancement.slice(0, config.styleCount),
+    ...colorEnhancement.slice(0, 2),
+  ]
+
+  // 平台后缀
   const suffix = formatPlatformSuffix(platform, aspectRatio)
 
+  // 构建完整Prompt - 明确要求自然语言段落，禁止tag格式
   if (isEnglish) {
-    return `You are a world-class AI image prompt engineer. Generate a ${config.minWords}+ word English prompt for ${platform} using this PIPELINE:
+    return `You are a world-class AI image prompt engineer. Generate a ${config.minWords}+ word English prompt for ${platform}.
 
-STAGE 1 — SUBJECT: Start with "${subject}". ${personKw.length > 0 ? `Include these human details: ${personKw.join(', ')}.` : 'Describe the subject in vivid detail - appearance, pose, expression, action.'}
-STAGE 2 — SCENE: Expand the environment. ${details ? `Details: ${details}.` : ''} ${sceneKw.length > 0 ? `Scene elements: ${sceneKw.join(', ')}.` : 'Describe the setting, background, atmosphere.'}
-STAGE 3 — CAMERA: ${camera ? `Use ${photoKw.join(', ')}.` : 'Add camera specs: lens, aperture, shot type, composition.'}
-STAGE 4 — LIGHTING: ${lighting ? `Use ${lightKw.join(', ')}.` : 'Add lighting design: source, direction, quality, shadows.'}
-STAGE 5 — MATERIAL: ${materialKw.length > 0 ? `Describe materials: ${materialKw.join(', ')}.` : 'Add material textures and surface qualities.'}
-STAGE 6 — COLOR: ${colorKw.length > 0 ? `Color palette: ${colorKw.slice(0, 4).join(', ')}.` : 'Define the color scheme and mood.'}
-STAGE 7 — STYLE: ${styleGuide}.
-STAGE 8 — QUALITY: ${qualityKw.join(', ')}.
-STAGE 9 — PLATFORM: ${platform === 'midjourney' ? `End with "${suffix}".` : platform === 'flux' ? 'Output a flowing natural-language paragraph, no tags.' : 'Output comma-separated English tags.'}
+CRITICAL OUTPUT FORMAT: You MUST output a NATURAL LANGUAGE PARAGRAPH, NOT tag/comma-separated format.
+DO NOT use: "1girl, solo, blonde hair, blue eyes" format
+DO use: "A beautiful young woman with long flowing blonde hair and striking blue eyes, wearing..." format
 
-CRITICAL RULES:
-- ${config.minWords}+ words minimum, richly detailed, photography-grade
-- Absolutely center on "${subject}" — no deviation, no hallucination
-- Output ONLY the final prompt text. No explanations, no markdown, no code blocks, no JSON.
-- Every word must contribute to the image quality.`
+SUBJECT-DRIVEN ARCHITECTURE:
+
+1. SUBJECT (70% of content):
+   The subject type is "${subjectLabel}".
+   Core description: ${subjectSection}.
+   ${details ? `Additional details: ${details}.` : ''}
+   Describe the subject in rich, flowing natural language sentences.
+
+2. ATMOSPHERE (20% - lighting/camera/color/mood only):
+   - Lighting: ${stylePhrases.slice(0, 2).join(', ')}
+   - Camera: ${stylePhrases.slice(2, 4).join(', ')}
+   - Color: ${colorEnhancement.slice(0, 3).join(', ')}
+
+3. QUALITY (10%):
+   ${matchQuality(quality || 'high').join(', ')}
+
+${platform === 'midjourney' ? `PLATFORM: Add "${suffix}" at the end.` : ''}
+${platform === 'stable-diffusion' ? 'Output natural language paragraph.' : ''}
+${platform === 'flux' ? 'Output as flowing natural-language paragraph.' : ''}
+
+RULES:
+- ${config.minWords}+ words minimum
+- SUBJECT is the hero — describe it in DETAILED NATURAL LANGUAGE
+- Style only controls atmosphere (lighting, camera, color, mood)
+- NO tag format, NO comma-separated keywords
+- Output ONLY the final prompt text. No explanations, no markdown, no JSON.`
   }
 
-  return `你是一位世界级 AI 绘图提示词工程师。请按以下 PIPELINE 为 ${platform} 生成 ${config.minWords}+ 词的英文提示词：
+  // 中文版本 - 明确要求自然语言段落
+  return `你是一位世界级 AI 绘图提示词工程师。请为 ${platform} 生成 ${config.minWords}+ 词的中文提示词。
 
-阶段1 主体识别：围绕"${subject}"展开。${personKw.length > 0 ? `人物细节参考：${personKw.join('、')}。` : '详细描述主体外观、姿态、表情、动作。'}
-阶段2 场景扩写：构建环境。${details ? `补充细节：${details}。` : ''} ${sceneKw.length > 0 ? `场景元素：${sceneKw.join('、')}。` : '描述环境、背景、氛围。'}
-阶段3 镜头构建：${camera ? `使用 ${photoKw.join('、')}。` : '添加镜头参数：焦段、光圈、景别、构图。'}
-阶段4 光影构建：${lighting ? `使用 ${lightKw.join('、')}。` : '添加光影设计：光源、方向、质感、阴影。'}
-阶段5 材质构建：${materialKw.length > 0 ? `描述材质：${materialKw.join('、')}。` : '添加材质纹理和表面质感。'}
-阶段6 色彩构建：${colorKw.length > 0 ? `色彩方案：${colorKw.slice(0, 4).join('、')}。` : '定义色彩方案和色调氛围。'}
-阶段7 风格构建：${styleGuide}。
-阶段8 画质增强：${qualityKw.join('、')}。
-阶段9 平台适配：${platform === 'midjourney' ? `末尾添加"${suffix}"。` : platform === 'flux' ? '输出自然语言段落，不使用逗号标签格式。' : '输出英文逗号分隔标签。'}
+关键输出格式：你必须输出自然语言段落，禁止使用标签/逗号分隔格式。
+禁止格式："1girl, solo, blonde hair, blue eyes"
+正确格式："一位美丽的年轻女性，拥有飘逸的金色长发和迷人的蓝色眼眸，身着..."
 
-关键规则：
-- 至少 ${config.minWords} 词，细节丰富，摄影级品质
-- 绝对围绕"${subject}"，禁止偏离主题，禁止幻觉
-- 只输出最终提示词文本，不要解释、markdown、代码块、JSON
-- 每个词都必须对画面质量有贡献`
+主体驱动架构：
+
+1. 主体（70%内容）：
+   主体类型："${subjectLabel}"
+   核心描述：${subjectSection}
+   ${details ? `补充细节：${details}` : ''}
+   使用流畅的自然语言详细描述主体。
+
+2. 氛围增强（20% - 仅光影/镜头/色彩/氛围）：
+   - 光影：${stylePhrases.slice(0, 2).join('、')}
+   - 镜头：${stylePhrases.slice(2, 4).join('、')}
+   - 色彩：${colorEnhancement.slice(0, 3).join('、')}
+
+3. 画质（10%）：
+   ${matchQuality(quality || 'high').join('、')}
+
+${platform === 'midjourney' ? `平台适配：末尾添加"${suffix}"` : ''}
+${platform === 'stable-diffusion' ? '输出自然语言段落。' : ''}
+${platform === 'flux' ? '输出自然语言段落。' : ''}
+
+规则：
+- 至少 ${config.minWords} 词
+- 主体是主角 — 用详细的自然语言描述
+- 风格层只控制氛围（光影、镜头、色彩、情绪）
+- 禁止标签格式、禁止逗号分隔关键词
+- 只输出最终提示词，不要解释、markdown、JSON`
 }
 
 // ==================== 一键优化 Prompt 构建 ====================
@@ -347,16 +439,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       let negativePromptFull: string | undefined
 
       if (isLlmConfigured()) {
-        // AI 润色 — 基于模板填充结果进行优化
+        // AI 润色 — 基于模板填充结果进行优化，支持翻译
         const polishPrompt = language === 'en'
           ? `Polish and enhance this prompt for ${platform}. Keep the original structure and keywords, but improve fluency and add subtle details where appropriate. Output ONLY the final prompt: ${filledTemplate}`
-          : `请对以下 ${platform} 提示词进行润色优化。保持原有结构和关键词，提升流畅度并在适当位置增加微妙细节。只输出最终提示词：${filledTemplate}`
+          : `请将以下 ${platform} 提示词翻译成中文，并进行润色优化。保持原有结构和关键词，提升流畅度并在适当位置增加微妙细节。确保输出完全是中文。只输出最终提示词：${filledTemplate}`
 
         generatedPrompt = await chatCompletion(
           [
             { role: 'system', content: language === 'en'
               ? 'You are a prompt polishing expert. Polish the given prompt. Output ONLY the polished prompt, no explanations.'
-              : '你是提示词润色专家。润色给定提示词，只输出润色后的提示词。'
+              : '你是提示词翻译润色专家。将英文提示词翻译成中文并进行优化，只输出最终中文提示词。'
             },
             { role: 'user', content: polishPrompt },
           ],
@@ -397,36 +489,48 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
   }
 
-  // ==================== 优先级 2：AI 自由生成模式（管道式引擎） ====================
+  // ==================== 优先级 2：AI 自由生成模式（主体驱动引擎） ====================
 
-  const pipelinePrompt = buildPipelinePrompt(
+  // 识别主体类型并生成主体内容
+  const subjectType = detectSubjectType(subject)
+  const { label: subjectLabel } = getSubjectTypeLabel(subjectType)
+  const subjectContent = generateSubjectContent(subjectType, subject, details, enhanceLevel === 'master' ? 8 : enhanceLevel === 'pro' ? 6 : 4)
+
+  const genCtx: GenerationContext = {
+    subjectType,
+    subjectLabel,
+    subjectContent,
+  }
+
+  const subjectDrivenPrompt = buildSubjectDrivenPrompt(
     platform, subject, style, language, enhanceLevel,
-    details, negativePrompt, aspectRatio, camera, lighting, mood, quality
+    genCtx, details, aspectRatio, camera, lighting, mood, quality
   )
 
   let generatedPrompt: string
   let negativePromptFull: string | undefined
 
   if (!isLlmConfigured()) {
-    // Fallback — 使用知识库生成高质量模板 Prompt
-    const personKw = matchPerson(subject)
+    // Fallback — 使用知识库生成高质量模板 Prompt（主体驱动）
     const photoKw = camera ? matchPhotography(camera) : matchPhotography('portrait')
     const lightKw = lighting ? matchLighting(lighting) : matchLighting('cinematic')
     const qualityKw = matchQuality(quality || 'high')
     const colorKw = matchColor(mood)
-    const materialKw = pickFromLibrary(materialLibrary['fabric'], 2)
-    const sceneKw = pickFromLibrary(sceneLibrary['outdoor'], 2)
 
-    const parts: string[] = [subject]
-    if (personKw.length > 0) parts.push(...personKw.slice(0, 5))
-    if (details) parts.push(details)
-    parts.push(...sceneKw)
-    parts.push(...photoKw.slice(0, 5))
-    parts.push(...lightKw.slice(0, 5))
-    parts.push(...materialKw)
-    parts.push(...colorKw.slice(0, 3))
-    parts.push(styleKeywords[style] || styleKeywords.cinematic)
-    parts.push(...qualityKw)
+    // 主体内容（70%）
+    const subjectPart = subjectContent.slice(0, 4).join(', ')
+    // 风格增强（20%）
+    const stylePart = [
+      ...lightKw.slice(0, 2),
+      ...photoKw.slice(0, 2),
+      ...colorKw.slice(0, 2),
+    ].join(', ')
+    // 画质（10%）
+    const qualityPart = qualityKw.join(', ')
+
+    const parts: string[] = [subjectPart]
+    parts.push(stylePart)
+    parts.push(qualityPart)
 
     generatedPrompt = parts.join(', ')
     if (platform === 'midjourney') {
@@ -437,13 +541,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
   } else {
     const systemPrompt = language === 'en'
-      ? 'You are a world-class AI image prompt engineer. Output ONLY the final prompt. No explanations, no markdown, no code blocks, no JSON. Follow the pipeline instructions exactly.'
-      : '你是一位世界级 AI 绘图提示词工程师。只输出最终提示词，不要解释、markdown、代码块、JSON。严格按照 Pipeline 指令执行。'
+      ? 'You are a world-class AI image prompt engineer. OUTPUT NATURAL LANGUAGE PARAGRAPH ONLY. Never use tag/comma-separated format. Do NOT output: "1girl, solo, blue eyes". DO output: "A beautiful young woman with..." Style and quality additions are allowed. Output ONLY the final prompt. No explanations, no markdown, no JSON.'
+      : '你是一位世界级 AI 绘图提示词工程师。只输出自然语言段落。禁止标签/逗号分隔格式。禁止输出："1girl, solo, blue eyes"。正确输出："一位美丽的年轻女性，拥有..." 风格和画质描述可以添加。只输出最终提示词，不要解释、markdown、代码块、JSON。'
 
     generatedPrompt = await chatCompletion(
       [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: pipelinePrompt },
+        { role: 'user', content: subjectDrivenPrompt },
       ],
       { temperature: 0.4, maxTokens: 3072, model: model || undefined, language: language || undefined }
     )

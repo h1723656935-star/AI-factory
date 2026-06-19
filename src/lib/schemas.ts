@@ -33,7 +33,7 @@ export const storyboardGenerateSchema = z.object({
     'fantasy', 'noir', 'watercolor', 'oil-painting', '3d-render',
     'pixel-art', 'comic', 'sketch', 'surreal', 'gothic',
   ]).default('cinematic'),
-  frameCount: z.number().int().min(3).max(24).default(6),
+  frameCount: z.number().int().min(3).max(12).default(6),
   model: z.string().optional(),
   language: z.enum(['cn', 'en']).default('cn'),
 })

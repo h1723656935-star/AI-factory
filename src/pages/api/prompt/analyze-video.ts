@@ -65,10 +65,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
   if (!applyRateLimit(req, res, 'ai')) return
 
-  const { language, model } = req.body
+  const { videoBase64, videoUrl, language, model } = req.body
 
   if (!isLlmConfigured()) {
-    // Fallback: 使用预设分析模板
     const fallback = {
       subject: '人物主体',
       shotTypes: ['close-up shot', 'medium shot', 'tracking shot'],
@@ -114,9 +113,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 Output ONLY valid JSON. No markdown, no code blocks, no explanations.`
     : `你是专业视频分析师。分析视频并输出JSON，包含：subject, shotTypes, cameraMovements, pacing, transitions, visualStyle, colorPalette, mood, prompts(含jimeng/keling/runway/ltx/veo), tags。只输出JSON。`
 
-  const userPrompt = language === 'en'
-    ? 'Analyze this video content and generate structured analysis with prompts for AI video generation platforms.'
-    : '分析这个视频内容，生成结构化分析，并为AI视频生成平台生成对应的提示词。'
+  let userPrompt: string
+  if (videoUrl) {
+    userPrompt = isEnglish
+      ? `Analyze this video URL: ${videoUrl}. Generate structured analysis with prompts for AI video generation platforms.`
+      : `分析视频链接：${videoUrl}。生成结构化分析，并为AI视频生成平台生成对应的提示词。`
+  } else if (videoBase64) {
+    userPrompt = isEnglish
+      ? `Analyze the video content provided. Identify the visual composition, camera movements, editing style, color grading, and emotional tone. Generate structured analysis with prompts for AI video generation platforms.`
+      : `分析提供的视频内容。识别视觉构图、镜头运动、剪辑风格、色彩分级和情感基调。生成结构化分析，并为AI视频生成平台生成对应的提示词。`
+  } else {
+    userPrompt = isEnglish
+      ? 'Analyze this video content and generate structured analysis with prompts for AI video generation platforms.'
+      : '分析这个视频内容，生成结构化分析，并为AI视频生成平台生成对应的提示词。'
+  }
 
   try {
     const text = await chatCompletion(

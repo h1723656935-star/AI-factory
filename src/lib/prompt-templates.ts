@@ -478,6 +478,11 @@ export function getAllTemplates(): PromptTemplate[] {
   return [...templateStore]
 }
 
+/** 根据 ID 获取模板 */
+export function getTemplateById(id: string): PromptTemplate | null {
+  return templateStore.find((t) => t.id === id) || null
+}
+
 /** 按平台获取模板 */
 export function getTemplatesByPlatform(platform: string): PromptTemplate[] {
   return templateStore.filter((t) => t.platform === platform)

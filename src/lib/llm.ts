@@ -5,6 +5,7 @@
  */
 
 import { fetch as undiciFetch, ProxyAgent } from 'undici'
+import { globalCache, cacheAside } from './cache'
 
 export type LlmProvider = 'openai' | 'anthropic' | 'zhipu' | 'dashscope' | 'deepseek'
 
@@ -78,113 +79,150 @@ function detectProvider(): LlmProvider {
 }
 
 function getProviderConfig(provider: LlmProvider): ProviderConfig {
+  const configs: Record<LlmProvider, Omit<ProviderConfig, 'formatBody'> & { defaultModel: string }> = {
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY,
+      baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      defaultModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      headers: { 'Content-Type': 'application/json' },
+      parseResponse: async (res) => {
+        const data = await res.json()
+        return data.choices?.[0]?.message?.content || ''
+      },
+    },
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      baseUrl: 'https://api.anthropic.com',
+      defaultModel: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      parseResponse: async (res) => {
+        const data = await res.json()
+        return data.content?.[0]?.text || ''
+      },
+    },
+    zhipu: {
+      apiKey: process.env.ZHIPU_API_KEY,
+      baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+      defaultModel: process.env.ZHIPU_MODEL || 'glm-4-flash',
+      headers: { 'Content-Type': 'application/json' },
+      parseResponse: async (res) => {
+        const data = await res.json()
+        return data.choices?.[0]?.message?.content || ''
+      },
+    },
+    dashscope: {
+      apiKey: process.env.DASHSCOPE_API_KEY,
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      defaultModel: process.env.DASHSCOPE_MODEL || 'qwen-turbo',
+      headers: { 'Content-Type': 'application/json' },
+      parseResponse: async (res) => {
+        const data = await res.json()
+        return data.choices?.[0]?.message?.content || ''
+      },
+    },
+    deepseek: {
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseUrl: 'https://api.deepseek.com',
+      defaultModel: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+      headers: { 'Content-Type': 'application/json' },
+      parseResponse: async (res) => {
+        const data = await res.json()
+        return data.choices?.[0]?.message?.content || ''
+      },
+    },
+  }
+
+  const cfg = configs[provider] || configs.openai
+
   switch (provider) {
     case 'openai':
     default:
       return {
-        apiKey: process.env.OPENAI_API_KEY,
-        baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        headers: { 'Content-Type': 'application/json' },
+        ...cfg,
+        model: cfg.defaultModel,
         formatBody: (messages, options) => ({
-          model: options.model || getProviderConfig('openai').model,
+          model: options.model || cfg.defaultModel,
           messages,
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 2048,
           response_format: options.responseFormat === 'json' ? { type: 'json_object' } : undefined,
         }),
-        parseResponse: async (res) => {
-          const data = await res.json()
-          return data.choices?.[0]?.message?.content || ''
-        },
       }
 
     case 'anthropic':
       return {
-        apiKey: process.env.ANTHROPIC_API_KEY,
-        baseUrl: 'https://api.anthropic.com',
-        model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
-        headers: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        },
+        ...cfg,
+        model: cfg.defaultModel,
         formatBody: (messages, options) => {
           const system = messages.find((m) => m.role === 'system')?.content
           const conversation = messages.filter((m) => m.role !== 'system')
           return {
-            model: options.model || getProviderConfig('anthropic').model,
+            model: options.model || cfg.defaultModel,
             system,
             messages: conversation,
             max_tokens: options.maxTokens ?? 2048,
             temperature: options.temperature ?? 0.7,
           }
         },
-        parseResponse: async (res) => {
-          const data = await res.json()
-          return data.content?.[0]?.text || ''
-        },
       }
 
     case 'zhipu':
       return {
-        apiKey: process.env.ZHIPU_API_KEY,
-        baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-        model: process.env.ZHIPU_MODEL || 'glm-4-flash',
-        headers: { 'Content-Type': 'application/json' },
+        ...cfg,
+        model: cfg.defaultModel,
         formatBody: (messages, options) => ({
-          model: options.model || getProviderConfig('zhipu').model,
+          model: options.model || cfg.defaultModel,
           messages,
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 2048,
         }),
-        parseResponse: async (res) => {
-          const data = await res.json()
-          return data.choices?.[0]?.message?.content || ''
-        },
       }
 
     case 'dashscope':
       return {
-        apiKey: process.env.DASHSCOPE_API_KEY,
-        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-        model: process.env.DASHSCOPE_MODEL || 'qwen-turbo',
-        headers: { 'Content-Type': 'application/json' },
+        ...cfg,
+        model: cfg.defaultModel,
         formatBody: (messages, options) => ({
-          model: options.model || getProviderConfig('dashscope').model,
+          model: options.model || cfg.defaultModel,
           messages,
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 2048,
         }),
-        parseResponse: async (res) => {
-          const data = await res.json()
-          return data.choices?.[0]?.message?.content || ''
-        },
       }
 
     case 'deepseek':
       return {
-        apiKey: process.env.DEEPSEEK_API_KEY,
-        baseUrl: 'https://api.deepseek.com',
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-        headers: { 'Content-Type': 'application/json' },
+        ...cfg,
+        model: cfg.defaultModel,
         formatBody: (messages, options) => ({
-          model: options.model || getProviderConfig('deepseek').model,
+          model: options.model || cfg.defaultModel,
           messages,
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 2048,
           response_format: options.responseFormat === 'json' ? { type: 'json_object' } : undefined,
         }),
-        parseResponse: async (res) => {
-          const data = await res.json()
-          return data.choices?.[0]?.message?.content || ''
-        },
       }
   }
 }
 
-export async function chatCompletion(
+function generateCacheKey(messages: LlmMessage[], options: LlmOptions): string {
+  const keyParts = [
+    options.provider || 'default',
+    options.model || 'default',
+    options.temperature?.toString() || '0.7',
+    options.responseFormat || 'text',
+    JSON.stringify(messages),
+  ]
+  const hash = keyParts.join('|')
+  return `llm:${Buffer.from(hash).toString('base64').slice(0, 64)}`
+}
+
+async function executeChatCompletion(
   messages: LlmMessage[],
-  options: LlmOptions = {}
+  options: LlmOptions
 ): Promise<string> {
   const provider = options.provider || detectProvider()
   const config = getProviderConfig(provider)
@@ -209,7 +247,6 @@ export async function chatCompletion(
   if (!res.ok) {
     const text = await res.text().catch(() => 'Unknown error')
 
-    // 智谱付费模型余额不足时，自动降级到 glm-4-flash（免费模型）
     if (
       provider === 'zhipu' &&
       res.status === 429 &&
@@ -223,6 +260,20 @@ export async function chatCompletion(
   }
 
   return config.parseResponse(res as unknown as Response)
+}
+
+export async function chatCompletion(
+  messages: LlmMessage[],
+  options: LlmOptions = {}
+): Promise<string> {
+  const useCache = options.temperature === 0 || (options.temperature && options.temperature < 0.3)
+  
+  if (useCache) {
+    const cacheKey = generateCacheKey(messages, options)
+    return cacheAside(globalCache, cacheKey, 5 * 60 * 1000, () => executeChatCompletion(messages, options))
+  }
+  
+  return executeChatCompletion(messages, options)
 }
 
 export async function chatCompletionJson<T = unknown>(
