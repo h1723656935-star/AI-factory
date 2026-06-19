@@ -28,10 +28,26 @@ export interface VideoAnalysis {
     subTitle: string
     keywords: string[]
     sentiment: 'positive' | 'negative' | 'neutral'
+    targetAudience?: string
+    painPoint?: string
+    valueProposition?: string
+    suggestedHashtags?: string[]
   }
   emotional_hooks?: EmotionalHook[]
   conflict_points?: ConflictPoint[]
   reversal_points?: ReversalPoint[]
+  content_structure?: Array<{ segment: string; timestamp: string; purpose: string; keyPoint: string }>
+  imitation_plan?: {
+    coreIdea: string
+    titleFormulas: string[]
+    hookTemplates: string[]
+    contentFramework: string
+    ctaFormula: string
+    riskWarnings: string[]
+  }
+  overall_score?: number
+  trend_potential?: string
+  raw_metadata?: Record<string, unknown>
   created_at: string
 }
 
@@ -39,18 +55,21 @@ export interface EmotionalHook {
   type: string
   strength: number
   content: string
+  whyItWorks?: string
 }
 
 export interface ConflictPoint {
   timestamp: string
   description: string
   intensity: number
+  howToUse?: string
 }
 
 export interface ReversalPoint {
   timestamp: string
   content: string
   impact: number
+  takeaway?: string
 }
 
 export interface Script {

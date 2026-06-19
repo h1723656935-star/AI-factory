@@ -29,6 +29,12 @@ const lengthLabels: Record<string, string> = {
   long: '1-3分钟',
 }
 
+const lengthWordCounts: Record<string, string> = {
+  short: '200-350字',
+  medium: '400-700字',
+  long: '800-1500字',
+}
+
 const demoScript = `标题：这条视频为什么能火？深度拆解爆款密码
 
 【开场】(0-3秒)
@@ -50,28 +56,57 @@ async function generateWithLlm(
   length: string,
   analysisContext?: string
 ): Promise<string> {
-  const systemPrompt = `你是一位专业的短视频脚本策划师。请根据用户提供的主题和要求，创作一篇适合短视频平台的爆款口播脚本。
+  const systemPrompt = `你是一位短视频脚本策划师。请根据用户给定的主题、风格、语气和时长，创作中文口播脚本。
+
+铁律：
+1. 必须紧紧围绕用户指定的主题展开，禁止跑题，禁止写与主题无关的内容。
+2. 必须包含：【开场】【正文】【高潮】【结尾】。
+3. 字数必须达到要求下限，内容具体、有信息增量。
+4. 【正文】至少给出 3 个紧扣主题的具体信息点或步骤。
+5. 直接输出脚本正文，不要解释。
+
+示例（主题：如何做番茄炒蛋）：
+【开场】
+（画面：主角拿着两个鸡蛋和一个番茄，表情神秘）
+旁白：你以为番茄炒蛋人人都会？其实想做出嫩滑入味的版本，关键就在这三步！
+
+【正文】
+1. （画面：番茄划十字，开水烫后去皮）
+   旁白：第一，番茄一定要去皮，口感才会细腻，汤汁也更浓郁。
+2. （画面：鸡蛋加少许水淀粉打散）
+   旁白：第二，蛋液里加一勺水淀粉，炒出来更蓬松嫩滑。
+3. （画面：先炒番茄出汁，再倒入鸡蛋）
+   旁白：第三，先炒番茄炒出沙，再倒入鸡蛋，让每块蛋都裹满茄汁。
+
+【高潮】
+（画面：成品特写，汤汁浓郁）
+旁白：记住这三步，家常番茄炒蛋也能做出餐厅级口感！
+
+【结尾】
+（画面：主角端着盘子笑）
+旁白：学会了吗？点赞收藏，下次做给家人吃！`;
+
+  const contextBlock = analysisContext
+    ? `【参考视频分析】\n${analysisContext}\n\n请借鉴参考视频的情绪钩子、冲突结构和反转节奏，但不要照搬其主题。\n`
+    : '';
+
+  const userPrompt = `${contextBlock}请围绕主题 "${topic}" 创作一篇短视频脚本。
 
 要求：
-- 脚本时长控制在 ${lengthLabels[length] || '30-60秒'}
-- 风格为：${styleLabels[style] || '通用'}
-- 语气为：${tone || '轻松自然'}
-- 结构必须包含：【开场】、【正文】、【高潮】、【结尾】
-- 开场要在 3 秒内抓住注意力
-- 高潮要有情绪爆发或信息增量
-- 结尾要有明确的互动引导（点赞/关注/评论）
-- 全部使用中文`;
+- 主题：${topic}
+- 风格：${styleLabels[style] || style}
+- 语气：${tone || '轻松自然'}
+- 时长：${lengthLabels[length] || '30-60秒'}
+- 字数：${lengthWordCounts[length] || '400-700字'}，必须达到下限
 
-  const userPrompt = analysisContext
-    ? `基于以下视频分析结果，创作一个同款风格的短视频脚本：\n\n${analysisContext}\n\n新主题：${topic}\n风格：${styleLabels[style] || style}\n语气：${tone || '轻松'}\n时长：${lengthLabels[length] || length}`
-    : `请为以下主题创作短视频脚本：\n\n主题：${topic}\n风格：${styleLabels[style] || style}\n语气：${tone || '轻松'}\n时长：${lengthLabels[length] || length}`;
+整篇脚本必须围绕 "${topic}"，提供具体、实用的内容。`
 
   return chatCompletion(
     [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.8, maxTokens: 2048 }
+    { temperature: 0.6, maxTokens: 4096 }
   )
 }
 

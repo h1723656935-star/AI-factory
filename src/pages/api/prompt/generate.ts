@@ -44,17 +44,23 @@ function buildPrompt(
   const aspect = aspectRatio ? `--ar ${aspectRatio}` : ''
   const neg = negativePrompt ? `Negative prompt: ${negativePrompt}` : ''
 
-  return `你是一位专业的 AI 绘图提示词工程师。请为 ${platform} 优化以下提示词。
+  return `为 ${platform} 生成英文 AI 绘图提示词。
 
-${platformGuide}
+【核心主题】${subject}
+【细节】${details || '无'}
+【风格】${style} (${styleGuide})
+【画面比例】${aspectRatio || '9:16'}
 
-主题：${subject}
-风格要求：${style} (${styleGuide})
-额外细节：${details || '无'}
-${neg}
-画面比例：${aspectRatio || '默认'}
+要求：
+1. 提示词必须紧紧围绕 "${subject}" 这个主体展开，绝对禁止偏离主题。
+2. 必须包含：主体、动作/姿态、环境、光线、色彩、构图、艺术风格、画质词。
+3. 直接输出最终英文提示词，不要解释、不要 markdown、不要 JSON。
+4. 在末尾加入 ${aspect || '--ar 9:16'}。
+${neg ? `5. ${neg}` : ''}
 
-请直接输出优化后的最终提示词（不要解释，不要包含 JSON），如果适合可以在末尾加入 ${aspect}。`
+平台说明：${platformGuide}
+
+请生成提示词：`
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -82,11 +88,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         {
           role: 'system',
           content:
-            '你是一位专业的 AI 绘图提示词工程师。你只会输出优化后的最终提示词，不添加任何解释、 markdown 代码块或额外文字。',
+            '你是一位专业的 AI 绘图提示词工程师。你的任务是围绕用户给定的【核心主题】，生成一条细节丰富、不偏离主题的英文提示词。只输出最终提示词，不添加解释、markdown 代码块或额外文字。',
         },
         { role: 'user', content: promptText },
       ],
-      { temperature: 0.7, maxTokens: 1024 }
+      { temperature: 0.5, maxTokens: 2048 }
     )
 
     // 清理可能的 markdown 代码块

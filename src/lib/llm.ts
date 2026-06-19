@@ -170,6 +170,17 @@ export async function chatCompletion(
 
   if (!res.ok) {
     const text = await res.text().catch(() => 'Unknown error')
+
+    // 智谱付费模型余额不足时，自动降级到 glm-4-flash（免费模型）
+    if (
+      provider === 'zhipu' &&
+      res.status === 429 &&
+      options.model !== 'glm-4-flash'
+    ) {
+      console.warn(`智谱模型 ${config.model} 触发 429，自动降级到 glm-4-flash`)
+      return chatCompletion(messages, { ...options, model: 'glm-4-flash' })
+    }
+
     throw new Error(`LLM API 错误 (${provider}): ${res.status} ${text}`)
   }
 

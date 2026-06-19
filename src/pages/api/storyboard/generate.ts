@@ -66,6 +66,9 @@ interface LlmStoryboardResult {
     description: string
     visualPrompt: string
     duration: string
+    camera?: string
+    lighting?: string
+    audio?: string
   }>
 }
 
@@ -74,34 +77,57 @@ async function generateWithLlm(
   style: string,
   frameCount: number
 ): Promise<StoryboardFrame[]> {
-  const systemPrompt = `你是一位专业的短视频分镜设计师。请将提供的脚本转化为可视化分镜，每个分镜包含画面描述和英文视觉提示词。
+  const systemPrompt = `你是一位短视频分镜设计师。请根据用户提供的脚本，生成指定数量的分镜。
 
-要求：
-- 输出 ${frameCount} 个分镜
-- 画面风格：${styleLabels[style] || style}
-- 每个分镜包含 sceneNumber、description（中文画面描述）、visualPrompt（英文 AI 绘图提示词）、duration（时长，如"5秒"）
-- visualPrompt 应包含画面主体、景别、光线、色彩、氛围，适合 Stable Diffusion / Midjourney
-- 第一个分镜时长建议 3 秒，其他建议 5 秒
+每个分镜必须输出 JSON 字段：
+- sceneNumber：镜头序号
+- description：中文画面描述，必须紧扣脚本内容，包含景别、机位和镜头运动
+- visualPrompt：英文 AI 绘图提示词，必须具体，包含主体、环境、光线、色彩、氛围、画质词
+- duration：时长，如"3秒"或"5秒"
+- camera：拍摄建议（可选）
+- lighting：光线方案（可选）
+- audio：声音提示（可选）
 
-请严格按照以下 JSON 格式输出：
+铁律：
+1. 所有分镜必须基于脚本内容，禁止生成与脚本无关的画面。
+2. 视觉提示词禁止抽象，必须可绘图。
+3. 第一个镜头 3 秒，其他 4-7 秒。
+4. 只输出 JSON，不要解释。
+
+示例（必须严格按此格式）：
 {
   "frames": [
-    { "sceneNumber": 1, "description": "...", "visualPrompt": "...", "duration": "3秒" }
+    {
+      "sceneNumber": 1,
+      "description": "特写：主角手持食材，面向镜头微笑",
+      "visualPrompt": "extremely detailed close-up of a chef holding fresh ingredients, warm kitchen lighting, shallow depth of field, masterpiece, best quality, highly detailed, 8k uhd",
+      "duration": "3秒",
+      "camera": "手机近景",
+      "lighting": "暖光侧逆",
+      "audio": "轻快节奏切入"
+    }
   ]
 }`;
 
   const result = await chatCompletionJson<LlmStoryboardResult>(
     [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `请将以下脚本转化为 ${frameCount} 个分镜：\n\n${scriptContent}` },
+      { role: 'user', content: `请将以下脚本转化为 ${frameCount} 个分镜。\n\n画面风格：${styleLabels[style] || style}\n\n脚本内容：\n###\n${scriptContent}\n###\n\n请输出 JSON 格式的分镜。` },
     ],
-    { temperature: 0.7, maxTokens: 2500 }
+    { temperature: 0.5, maxTokens: 4096 }
   )
 
   return (result.frames || []).slice(0, frameCount).map((frame) => ({
     id: crypto.randomUUID(),
     sceneNumber: frame.sceneNumber,
-    description: frame.description,
+    description: [
+      frame.description,
+      frame.camera ? `【拍摄】${frame.camera}` : '',
+      frame.lighting ? `【光线】${frame.lighting}` : '',
+      frame.audio ? `【声音】${frame.audio}` : '',
+    ]
+      .filter(Boolean)
+      .join(' / '),
     visualPrompt: frame.visualPrompt,
     duration: frame.duration,
   }))
