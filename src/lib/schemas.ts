@@ -59,6 +59,19 @@ export const promptGenerateSchema = z.object({
   lighting: z.enum(['cinematic', 'backlight', 'soft', 'volumetric', 'neon', 'moonlight']).optional(),
   mood: z.enum(['dreamy', 'mysterious', 'oppressive', 'warm', 'lonely', 'epic']).optional(),
   quality: z.enum(['standard', 'high', 'master']).optional(),
+  enhanceLevel: z.enum(['basic', 'pro', 'master']).default('pro'),
+})
+
+// 一键优化请求
+export const promptOptimizeSchema = z.object({
+  prompt: z.string().min(10, '提示词至少10个字符'),
+  platform: z.enum([
+    'midjourney', 'stable-diffusion', 'dalle', 'leonardo', 'flux',
+    'jimeng', 'keling', 'comfyui', 'fooocus',
+  ]).default('midjourney'),
+  style: z.string().optional(),
+  model: z.string().optional(),
+  language: z.enum(['cn', 'en']).default('cn'),
 })
 
 // 订阅创建请求

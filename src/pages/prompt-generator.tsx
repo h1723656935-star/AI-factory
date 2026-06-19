@@ -6,6 +6,7 @@ import {
   Upload, Camera, Sun, Smile, Zap, Palette, TrendingUp, ChevronDown,
   ChevronUp, ChevronRight, Star, Target, Eye, Lightbulb, FileText, Tag, BarChart3,
   ThumbsUp, AlertCircle, Plus, Trash2, Layers, Search, Bookmark,
+  ArrowUpCircle, Rocket, Crown,
 } from 'lucide-react'
 import { Layout } from '@/components/Layout'
 import { useAuth } from '@/hooks/useAuth'
@@ -95,6 +96,12 @@ const modelOptions = [
   { value: 'glm-4-flash', label: 'GLM-4-Flash（免费）' },
   { value: 'glm-4-air', label: 'GLM-4-Air' },
   { value: 'glm-4', label: 'GLM-4' },
+]
+
+const enhanceLevels = [
+  { value: 'basic', label: '基础版', icon: '📝', desc: '~50词', minWords: 30 },
+  { value: 'pro', label: '专业版', icon: '🚀', desc: '~100词', minWords: 80, recommended: true },
+  { value: 'master', label: '大师版', icon: '👑', desc: '~200词', minWords: 150 },
 ]
 
 // ==================== 风格模板库 ====================
@@ -324,6 +331,8 @@ export default function PromptGeneratorPage() {
   const [lighting, setLighting] = useState('')
   const [mood, setMood] = useState('')
   const [quality, setQuality] = useState('')
+  const [enhanceLevel, setEnhanceLevel] = useState('pro')
+  const [optimizing, setOptimizing] = useState(false)
 
   // UI 状态
   const [loading, setLoading] = useState(false)
@@ -357,6 +366,7 @@ export default function PromptGeneratorPage() {
           negativePrompt: negativePrompt || undefined, aspectRatio, model, language,
           camera: camera || undefined, lighting: lighting || undefined,
           mood: mood || undefined, quality: quality || undefined,
+          enhanceLevel,
         }),
       })
       setPrompt(data)
@@ -366,6 +376,44 @@ export default function PromptGeneratorPage() {
       setError(err instanceof Error ? err.message : '提示词生成失败，请稍后重试')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 一键优化
+  const handleOptimize = async () => {
+    if (!prompt?.generated_prompt) return
+
+    setOptimizing(true)
+    setError('')
+
+    try {
+      const data = await apiFetch<{
+        original_prompt: string
+        optimized_prompt: string
+        quality_score: PromptQualityScore
+        improvement: { originalScore: number; optimizedScore: number; improvement: number }
+      }>('/api/prompt/generate?optimize=true', {
+        method: 'POST',
+        body: JSON.stringify({
+          prompt: prompt.generated_prompt,
+          platform,
+          style,
+          model,
+          language,
+        }),
+      })
+      // 更新结果
+      setPrompt({
+        ...prompt,
+        generated_prompt: data.optimized_prompt,
+        quality_score: data.quality_score,
+        tags: [...(prompt.tags || []), '已优化'],
+      })
+      setEditedTags((prev) => [...prev, '已优化', `+${data.improvement.improvement}分`])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '一键优化失败，请稍后重试')
+    } finally {
+      setOptimizing(false)
     }
   }
 
@@ -774,6 +822,38 @@ export default function PromptGeneratorPage() {
                     </div>
                   </div>
 
+                  {/* 增强等级 */}
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-1.5">
+                      <Crown className="w-3.5 h-3.5 text-gold-500" /> Prompt 增强等级
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {enhanceLevels.map((lvl) => (
+                        <button
+                          key={lvl.value}
+                          type="button"
+                          onClick={() => setEnhanceLevel(lvl.value)}
+                          className={`p-3 rounded-xl text-center transition-all border ${
+                            enhanceLevel === lvl.value
+                              ? 'bg-gold-500/20 border-gold-500/50 shadow-lg shadow-gold-500/10'
+                              : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:border-white/10'
+                          }`}
+                        >
+                          <span className="block text-xl mb-1">{lvl.icon}</span>
+                          <span className={`block text-sm font-bold ${enhanceLevel === lvl.value ? 'text-gold-500' : 'text-gray-300'}`}>
+                            {lvl.label}
+                          </span>
+                          <span className="block text-xs text-gray-500 mt-0.5">{lvl.desc}</span>
+                          {lvl.recommended && (
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-gold-500/20 text-gold-400 text-xs">
+                              推荐
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* 生成按钮 */}
                   <button
                     type="submit"
@@ -885,6 +965,22 @@ export default function PromptGeneratorPage() {
                           <p className="text-xs text-gray-500 mb-2">质量评分</p>
                           <QualityScoreCard score={prompt.quality_score} />
                         </div>
+                      )}
+
+                      {/* 一键优化按钮 */}
+                      {prompt.quality_score && prompt.quality_score.total < 85 && (
+                        <button
+                          onClick={handleOptimize}
+                          disabled={optimizing}
+                          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-cyber-blue/20 border border-purple-500/30 text-purple-400 hover:border-purple-500/50 transition-all text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {optimizing ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <ArrowUpCircle className="w-4 h-4" />
+                          )}
+                          {optimizing ? '正在优化...' : '一键优化 — 自动补充镜头、光影、材质、构图'}
+                        </button>
                       )}
                     </>
                   ) : (
