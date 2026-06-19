@@ -55,12 +55,23 @@ export const promptGenerateSchema = z.object({
   aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:3', '3:2', '2:3']).default('9:16'),
   model: z.string().optional(),
   language: z.enum(['cn', 'en']).default('cn'),
+  camera: z.enum(['close-up', 'portrait', 'full-body', 'wide-angle', 'bird-view', 'pov', 'aerial']).optional(),
+  lighting: z.enum(['cinematic', 'backlight', 'soft', 'volumetric', 'neon', 'moonlight']).optional(),
+  mood: z.enum(['dreamy', 'mysterious', 'oppressive', 'warm', 'lonely', 'epic']).optional(),
+  quality: z.enum(['standard', 'high', 'master']).optional(),
 })
 
 // 订阅创建请求
 export const subscriptionCreateSchema = z.object({
   planId: z.string().min(1, '请选择订阅方案'),
   paymentMethod: z.string().optional(),
+})
+
+// 图片反推请求
+export const imageAnalysisSchema = z.object({
+  imageBase64: z.string().min(1, '请提供图片数据'),
+  model: z.string().optional(),
+  language: z.enum(['cn', 'en']).default('cn'),
 })
 
 // 提示词模板

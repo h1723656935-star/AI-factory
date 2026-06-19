@@ -102,6 +102,30 @@ export interface Storyboard {
   created_at: string
 }
 
+export interface PromptQualityScore {
+  total: number
+  detail: number
+  composition: number
+  style: number
+  platform: number
+  suggestions: string[]
+}
+
+export interface PromptPlatformParams {
+  midjourney?: { ar?: string; stylize?: number; version?: string }
+  sdxl?: { cfg?: number; steps?: number; sampler?: string }
+}
+
+export interface ImageAnalysis {
+  subject: string
+  composition: string
+  camera: string
+  style: string
+  colors: string
+  lighting: string
+  tags: string[]
+}
+
 export interface Prompt {
   id: string
   user_id?: string
@@ -111,8 +135,19 @@ export interface Prompt {
   details?: string
   negative_prompt?: string
   generated_prompt: string
+  negative_prompt_full?: string
   aspect_ratio?: string
+  camera?: string
+  lighting?: string
+  mood?: string
+  quality?: string
+  model?: string
+  language?: string
+  platform_params?: PromptPlatformParams
+  quality_score?: PromptQualityScore
+  tags?: string[]
   created_at: string
+  updated_at?: string
 }
 
 export interface HistoryItem {
