@@ -19,6 +19,44 @@ export interface LlmOptions {
   temperature?: number
   maxTokens?: number
   responseFormat?: 'text' | 'json'
+  language?: 'cn' | 'en'
+}
+
+/** 可用模型列表 */
+export const AVAILABLE_MODELS: Record<LlmProvider, Array<{ value: string; label: string; free: boolean }>> = {
+  zhipu: [
+    { value: 'glm-4-flash', label: 'GLM-4-Flash（免费）', free: true },
+    { value: 'glm-4-air', label: 'GLM-4-Air', free: false },
+    { value: 'glm-4', label: 'GLM-4', free: false },
+  ],
+  openai: [
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini', free: false },
+    { value: 'gpt-4o', label: 'GPT-4o', free: false },
+  ],
+  deepseek: [
+    { value: 'deepseek-chat', label: 'DeepSeek-V3', free: false },
+    { value: 'deepseek-reasoner', label: 'DeepSeek-R1', free: false },
+  ],
+  dashscope: [
+    { value: 'qwen-turbo', label: 'Qwen-Turbo', free: false },
+    { value: 'qwen-plus', label: 'Qwen-Plus', free: false },
+    { value: 'qwen-max', label: 'Qwen-Max', free: false },
+  ],
+  anthropic: [
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', free: false },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus', free: false },
+  ],
+}
+
+/** 当前可用模型列表（仅已配置的提供商） */
+export function getAvailableModels(): Array<{ provider: LlmProvider; providerLabel: string; models: Array<{ value: string; label: string; free: boolean }> }> {
+  const providers: Array<{ provider: LlmProvider; providerLabel: string }> = []
+  if (process.env.ZHIPU_API_KEY) providers.push({ provider: 'zhipu', providerLabel: '智谱AI' })
+  if (process.env.OPENAI_API_KEY) providers.push({ provider: 'openai', providerLabel: 'OpenAI' })
+  if (process.env.DEEPSEEK_API_KEY) providers.push({ provider: 'deepseek', providerLabel: 'DeepSeek' })
+  if (process.env.DASHSCOPE_API_KEY) providers.push({ provider: 'dashscope', providerLabel: '通义千问' })
+  if (process.env.ANTHROPIC_API_KEY) providers.push({ provider: 'anthropic', providerLabel: 'Anthropic' })
+  return providers.map(p => ({ ...p, models: AVAILABLE_MODELS[p.provider] }))
 }
 
 interface ProviderConfig {
