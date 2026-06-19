@@ -96,3 +96,50 @@ export const promptTemplateSchema = z.object({
   aspectRatio: z.string().optional(),
   isPublic: z.boolean().default(false),
 })
+
+// ==================== Prompt Studio 新增 Schema ====================
+
+// 视频反推请求
+export const videoAnalysisSchema2 = z.object({
+  videoBase64: z.string().min(1, '请提供视频数据').optional(),
+  videoUrl: z.string().url('请输入有效的视频链接').optional(),
+  model: z.string().optional(),
+  language: z.enum(['cn', 'en']).default('cn'),
+})
+
+// 收藏夹请求
+export const favoriteCreateSchema = z.object({
+  prompt: z.string().min(5, '提示词至少5个字符'),
+  negative_prompt: z.string().optional(),
+  platform: z.string().default('midjourney'),
+  style: z.string().optional(),
+  category: z.string().default('general'),
+  tags: z.array(z.string()).default([]),
+  note: z.string().max(500).optional(),
+})
+
+// 实验室请求
+export const labGenerateSchema = z.object({
+  subject: z.string().min(2, '主体描述至少2个字符').max(300),
+  styles: z.array(z.string()).optional(),
+  industry: z.enum([
+    'portrait', 'ecommerce', 'fashion', 'poster',
+    'ip-character', 'game-character', 'architecture', 'interior',
+    'short-video', 'ai-film',
+  ]).optional(),
+  model: z.string().optional(),
+  language: z.enum(['cn', 'en']).default('cn'),
+})
+
+// 优化请求（增强版）
+export const promptOptimizeEnhancedSchema = z.object({
+  prompt: z.string().min(10, '提示词至少10个字符'),
+  platform: z.enum([
+    'midjourney', 'stable-diffusion', 'dalle', 'leonardo', 'flux',
+    'jimeng', 'keling', 'comfyui', 'fooocus',
+  ]).default('midjourney'),
+  level: z.enum(['basic', 'pro', 'master']).default('pro'),
+  style: z.string().optional(),
+  model: z.string().optional(),
+  language: z.enum(['cn', 'en']).default('cn'),
+})

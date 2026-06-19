@@ -109,6 +109,14 @@ export interface PromptQualityScore {
   style: number
   platform: number
   suggestions: string[]
+  missingItems?: MissingItem[]
+}
+
+export interface MissingItem {
+  label: string
+  description: string
+  missing: boolean
+  suggestion?: string
 }
 
 export interface PromptPlatformParams {
@@ -205,4 +213,86 @@ export interface RegisterCredentials {
 export interface ApiResponse<T = unknown> {
   data?: T
   error?: string
+}
+
+// ==================== Prompt Studio 新增类型 ====================
+
+/** 视频反推分析结果 */
+export interface VideoAnalysisResult {
+  subject: string
+  shotTypes: string[]
+  cameraMovements: string[]
+  pacing: string
+  transitions: string[]
+  visualStyle: string
+  colorPalette: string[]
+  mood: string
+  prompts: Record<string, string>
+  tags: string[]
+}
+
+/** 收藏夹 */
+export interface Favorite {
+  id: string
+  user_id?: string
+  prompt: string
+  negative_prompt?: string
+  platform: string
+  style?: string
+  category: string
+  tags: string[]
+  note?: string
+  created_at: string
+}
+
+/** 实验室 — 多风格变体 */
+export interface LabVariant {
+  style: string
+  label: string
+  prompt: string
+  platform: string
+}
+
+export interface LabResult {
+  subject: string
+  variants: LabVariant[]
+}
+
+/** 行业模式 */
+export type IndustryType =
+  | 'portrait' | 'ecommerce' | 'fashion' | 'poster'
+  | 'ip-character' | 'game-character' | 'architecture' | 'interior'
+  | 'short-video' | 'ai-film'
+
+/** 标签库类别 */
+export interface TagCategory {
+  name: string
+  label: string
+  icon: string
+  tags: string[]
+}
+
+/** 爆款 Prompt */
+export interface HotPrompt {
+  id: string
+  title: string
+  platform: string
+  prompt: string
+  category: string
+  likes: number
+  style?: string
+  tags: string[]
+}
+
+/** 优化结果 */
+export interface OptimizeResult {
+  original_prompt: string
+  optimized_prompt: string
+  quality_score: PromptQualityScore
+  improvement: {
+    originalScore: number
+    optimizedScore: number
+    improvement: number
+  }
+  diff?: string[]
 }

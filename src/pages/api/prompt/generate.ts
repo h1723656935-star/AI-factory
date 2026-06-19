@@ -17,7 +17,7 @@ const supabase = createAdminClient()
 
 // ==================== 风格关键词 ====================
 
-const styleKeywords: Record<string, string> = {
+export const styleKeywords: Record<string, string> = {
   cinematic: 'cinematic lighting, film grain, dramatic composition, epic scale, anamorphic lens, depth of field, 35mm film aesthetic',
   anime: 'anime style, vibrant colors, cel shading, clean line art, 2D animation, detailed background art',
   realistic: 'photorealistic, hyper realistic, 8k uhd, sharp focus, detailed texture, subsurface scattering, ray tracing',
@@ -66,7 +66,7 @@ function formatPlatformSuffix(platform: string, aspectRatio?: string): string {
 
 // ==================== 真实质量评分引擎 ====================
 
-function scorePrompt(prompt: string, platform: string, style: string): PromptQualityScore {
+export function scorePrompt(prompt: string, platform: string, style: string): PromptQualityScore {
   const lower = prompt.toLowerCase()
   const words = prompt.split(/[\s,]+/).filter(Boolean).length
   const charCount = prompt.length
@@ -154,7 +154,21 @@ function scorePrompt(prompt: string, platform: string, style: string): PromptQua
   if (words < 50) suggestions.push('提示词偏短（' + words + '词），建议扩展到 80 词以上')
   if (total >= 85) suggestions.push('提示词质量优秀，可直接复制到 ' + platform + ' 使用！')
 
-  return { total, detail: detailScore, composition: compScore, style: styleScore, platform: platformScore, suggestions }
+  // 缺失项检测
+  const missingItems: Array<{ label: string; description: string; missing: boolean; suggestion?: string }> = [
+    { label: '动作描述', description: '主体在做什么', missing: !/(standing|sitting|walking|running|posing|holding|looking|gazing|smiling|dancing|flying|floating|action|pose|gesture|movement)/i.test(prompt), suggestion: '添加主体动作：standing, walking, looking, holding...' },
+    { label: '背景环境', description: '场景/背景/环境', missing: envCount === 0, suggestion: '添加环境描述：background, environment, scene, forest...' },
+    { label: '镜头焦段', description: '镜头参数/焦段', missing: lensCount === 0, suggestion: '添加镜头参数：85mm, 50mm, f/1.4, wide angle...' },
+    { label: '构图视角', description: '景别/视角/构图', missing: shotCount < 2, suggestion: '添加构图描述：close-up, portrait, wide shot, composition...' },
+    { label: '景深描述', description: '景深/虚化/对焦', missing: dofCount === 0, suggestion: '添加景深：depth of field, bokeh, shallow focus...' },
+    { label: '材质描述', description: '材质/纹理/质感', missing: materialCount < 2, suggestion: '添加材质：silk, metal, leather, crystal, wood...' },
+    { label: '光影系统', description: '光源/方向/强度', missing: lightingCount < 3, suggestion: '添加光影：lighting, volumetric, rim light, soft light...' },
+    { label: '色彩方案', description: '色调/色彩/氛围', missing: !/(color|tone|warm|cool|palette|hue|golden|blue|red|purple|green|amber|teal|pink|orange|cyan)/i.test(prompt), suggestion: '添加色彩：warm tones, golden, teal and orange, pastel...' },
+    { label: '画质标签', description: '画质/分辨率/质量词', missing: !/(masterpiece|best quality|ultra detailed|8k|4k|high resolution|photorealistic|hd|uhd)/i.test(prompt), suggestion: '添加画质词：masterpiece, best quality, ultra detailed, 8k...' },
+    { label: '风格关键词', description: '风格特征描述', missing: styleScore < 60, suggestion: '强化风格关键词：' + (styleKeywords[style]?.split(', ').slice(0, 3).join(', ') || '') },
+  ]
+
+  return { total, detail: detailScore, composition: compScore, style: styleScore, platform: platformScore, suggestions, missingItems }
 }
 
 // ==================== 提取标签 ====================
